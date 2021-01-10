@@ -1,6 +1,7 @@
 # fgo_update
 
 FGOのデータ更新をチェックしてDiscordのwebhookにpostする
+Atlas Achadmy の fgo-changes から発想を得てます
 
 次の更新がpostされます
 - データ更新
@@ -51,6 +52,8 @@ $ chmod +x fgoupdate.py
 
 # 使用法
 下記のコマンド実行でアップデートの有無をチェックします
+
+なお、初回実行時は多数の更新内容がポストされます
 ```
 $ python3 ./fgoupdate.py
 ```
