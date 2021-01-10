@@ -64,7 +64,7 @@ $ python3 ./fgoupdate.py
 ![image](https://user-images.githubusercontent.com/62515228/104119035-560bf980-5370-11eb-9e7d-cfc6e52a4494.png)
 ![image](https://user-images.githubusercontent.com/62515228/104119054-6c19ba00-5370-11eb-8751-49ac11ccdb9f.png)
 ![image](https://user-images.githubusercontent.com/62515228/104119068-80f64d80-5370-11eb-867a-3d36dd0c58f5.png)
-![image](https://user-images.githubusercontent.com/62515228/104119092-a6835700-5370-11eb-9b6a-99b0f467f981.png)
+![image](https://user-images.githubusercontent.com/62515228/104120830-2fa08b00-537d-11eb-8b78-7cb721f82d5f.png)
 
 実用的には cron などを利用して定期的に実行することになります
 
