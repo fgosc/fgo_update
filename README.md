@@ -2,7 +2,7 @@
 
 FGOのデータ更新をチェックしてDiscordのwebhookにpostする
 
-Atlas Achadmy の fgo-changes から発想を得てます
+Atlas Achademy の fgo-changes から発想を得てます
 
 次の更新がpostされます
 - データ更新
