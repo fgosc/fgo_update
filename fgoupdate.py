@@ -38,6 +38,7 @@ mstQuestInfo_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_
 mstQuestPhase_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/quest/mstQuestPhase.json"
 mstEventMission_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/event/mstEventMission.json"
 mstEvent_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/event/mstEvent.json"
+mstShop_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/shop/mstShop.json"
 
 
 def list2class(enemy):
@@ -234,7 +235,7 @@ def check_dailymissions(mstEventMissionDaily_list):
     """
     if len(mstEventMissionDaily_list) != 0:
         dailyMission_content = {
-                        "username": "FGO Changelog",
+                        "username": "FGO アップデート",
                         "embeds": [{
                                 "title": "ミッション(デイリー)更新",
                                 "fields": [
@@ -326,20 +327,93 @@ def check_event(main_data):
     return {"mstevent": mstevent}
 
 
+def output_shop(shop_list, shopname):
+    """
+    ショップデータを出力する
+    """
+    if len(shop_list) != 0:
+        shop_content = {
+                        "username": "FGO アップデート",
+                        "embeds": [{
+                                "title": shopname + "更新",
+                                "fields": [
+                                    {
+                                        "name": "内容",
+                                        "value": '\n'.join(['- ' + n["name"] for n in shop_list])
+                                    }
+                                ],
+                                "color": 5620992
+                                    }]
+                        }
+        requests.post(webhook_url,
+                      json.dumps(shop_content),
+                      headers={'Content-Type': 'application/json'})
+
+
+def check_shop(main_data):
+    """
+    ショップをチェックする
+    1 イベント限定ショップ
+    2 マナプリズム
+    3 レアプリズム
+    8 サウンドプレイヤー
+    """
+    r_get = requests.get(mstShop_url)
+    mstshop = main_data["mstshop"]
+    logger.debug("mstshop: %s", mstshop)
+    eventShop_list = [m for m in r_get.json()
+                      if m["shopType"] == 1
+                      and time.time() < m["closedAt"] < 1893423600
+                      and m["id"] not in mstshop]
+    logger.debug("eventShop_list: %s", eventShop_list)
+    manaShop_list = [m for m in r_get.json()
+                     if m["shopType"] == 2
+                     and m["openedAt"] >= 1609426800
+                     and time.time() < m["closedAt"]
+                     and m["id"] not in mstshop]
+    logger.debug("manaShop_list: %s", manaShop_list)
+    rareShop_list = [m for m in r_get.json()
+                     if m["shopType"] == 3
+                     and m["openedAt"] >= 1607958000
+                     and time.time() < m["closedAt"]
+                     and m["id"] not in mstshop]
+    # 1594717200はこのソフトウェア公開直前の解放
+    logger.debug("rareShop_list: %s", rareShop_list)
+    soundPayer_list = [m for m in r_get.json()
+                       if m["shopType"] == 8
+                       and m["openedAt"] >= 1594717200
+                       and m["id"] not in mstshop]
+    logger.debug("soundPayer_list: %s", soundPayer_list)
+    output_shop(eventShop_list, "イベントショップ")
+    output_shop(manaShop_list, "マナプリズム交換")
+    output_shop(rareShop_list, "レアプリズム交換")
+    output_shop(soundPayer_list, "サウンドプレイヤー")
+    m1 = [m["id"] for m in eventShop_list]
+    m2 = [m["id"] for m in manaShop_list]
+    m3 = [m["id"] for m in rareShop_list]
+    m4 = [m["id"] for m in soundPayer_list]
+    return {"mstshop": mstshop + m1 + m2 + m3 + m4}
+
+
 def main():
     filename = basedir / Path(data_json)
     if filename.exists():
         f1 = open(filename, 'r')
         main_data = json.load(f1)
+        if "mstshop" not in main_data.keys():
+            main_data["mstshop"] = []
     else:
         main_data = {"mstver": {"appVer": "", "dataVer": 0, "dateVer": 0},
-                      "mstquest": [], "mstmission": [], "mstevent": []}
+                     "mstquest": [], "mstmission": [], "mstevent": [],
+                     "mstshop": []}
 
-    if check_update():
+#    if check_update():
+    if 1:
         new_data = check_datavar(main_data)
         new_data.update(check_quests(main_data))
         new_data.update(check_missions(main_data))
         new_data.update(check_event(main_data))
+        new_data.update(check_shop(main_data))
         logger.debug(new_data)
         with open(filename, mode="w", encoding="UTF-8") as fout:
             fout.write(json.dumps(new_data))
