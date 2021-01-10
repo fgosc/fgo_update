@@ -1,6 +1,7 @@
 # fgo_update
 
 FGOのデータ更新をチェックしてDiscordのwebhookにpostする
+
 Atlas Achadmy の fgo-changes から発想を得てます
 
 次の更新がpostされます
