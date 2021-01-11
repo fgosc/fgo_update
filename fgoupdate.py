@@ -407,8 +407,7 @@ def main():
                      "mstquest": [], "mstmission": [], "mstevent": [],
                      "mstshop": []}
 
-#    if check_update():
-    if 1:
+    if check_update():
         new_data = check_datavar(main_data)
         new_data.update(check_quests(main_data))
         new_data.update(check_missions(main_data))
