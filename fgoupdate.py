@@ -39,19 +39,22 @@ mstQuestPhase_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP
 mstEventMission_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/event/mstEventMission.json"
 mstEvent_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/event/mstEvent.json"
 mstShop_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/shop/mstShop.json"
+mstSvt_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/svt/mstSvt.json"
+mstSvtFilter_url = "https://raw.githubusercontent.com/" + fgodata + "/master/JP_tables/svt/mstSvtFilter.json"
 
+class_dic = {
+             1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
+             8: "盾", 9: "裁", 10: "分", 11: "讐", 12: "?", 17: "?", 20: "?",
+             22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?",1001: "?"
+            }
 
 def list2class(enemy):
     """
     リスト内のクラスを省略表記に
     """
-    enemy_dic = {
-                 1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
-                 8: "盾", 9: "裁", 10: "分", 11: "讐", 23: "月", 25: "降"
-                 }
     out = ""
     for e in enemy:
-        out += enemy_dic[e]
+        out += class_dic[e]
     return out
 
 
@@ -395,6 +398,44 @@ def check_shop(main_data):
     return {"mstshop": mstshop + m1 + m2 + m3 + m4}
 
 
+def check_svtfilter(main_data):
+    """
+    サーヴァント強化フィルターの更新チェック
+    """
+    cost = {16: "★5", 12: "★4", 7: "★3", 4: "★2", 3: "★1", 0: "★4", 9: "9?", 1: "1?", 5: "5?"}
+    r_get = requests.get(mstSvtFilter_url)
+    r_get2 = requests.get(mstSvt_url)
+    mstsvtfilter = main_data["mstsvtfilter"]
+    logger.debug("mstsvtfilter: %s", mstsvtfilter)
+    mstSvtFilter_list = [m for m in r_get.json()
+                         if m["id"] not in mstsvtfilter]
+#    mstSvtF_dic = {m["id"]: {"name": m["name"], "classId": m["classId"]} for m in r_get.json()}
+    mstSvtF_dic = {m["id"]: cost[m["cost"]] + ' ' + m["name"] + '〔' + class_dic[m["classId"]] + '〕' for m in r_get2.json()}
+    logger.debug(mstSvtF_dic)
+    logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
+    for svtFilter in mstSvtFilter_list:
+        filter_content = {
+                        "username": "FGO アップデート",
+                        "embeds": [{
+                                "title": svtFilter["name"] + "フィルター更新",
+                                "fields": [
+                                    {
+                                        "name": "対象サーヴァント",
+                                        "value": '\n'.join(['- ' + mstSvtF_dic[n] for n in svtFilter["svtIds"]])
+                                    }
+                                ],
+                                "color": 5620992
+                                    }]
+                        }
+        logger.debug(filter_content)
+        requests.post(webhook_url,
+                      json.dumps(filter_content),
+                      headers={'Content-Type': 'application/json'})
+    for svtFilter in mstSvtFilter_list:
+        mstsvtfilter.append(svtFilter["id"])
+    return {"mstsvtfilter": mstsvtfilter}
+
+
 def main():
     filename = basedir / Path(data_json)
     if filename.exists():
@@ -402,10 +443,12 @@ def main():
         main_data = json.load(f1)
         if "mstshop" not in main_data.keys():
             main_data["mstshop"] = []
+        if "mstsvtfilter" not in main_data.keys():
+            main_data["mstsvtfilter"] = []
     else:
         main_data = {"mstver": {"appVer": "", "dataVer": 0, "dateVer": 0},
                      "mstquest": [], "mstmission": [], "mstevent": [],
-                     "mstshop": []}
+                     "mstshop": [], "mstsvtfilter": []}
 
     if check_update():
         new_data = check_datavar(main_data)
@@ -413,6 +456,7 @@ def main():
         new_data.update(check_missions(main_data))
         new_data.update(check_event(main_data))
         new_data.update(check_shop(main_data))
+        new_data.update(check_svtfilter(main_data))
         logger.debug(new_data)
         with open(filename, mode="w", encoding="UTF-8") as fout:
             fout.write(json.dumps(new_data))
