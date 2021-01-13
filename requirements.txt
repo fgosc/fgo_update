@@ -1,1 +1,4 @@
-requests
+discordwebhook
+GitPython
+matplotlib
+zc.lockfile
