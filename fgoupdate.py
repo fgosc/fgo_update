@@ -13,6 +13,8 @@ import os
 import git
 from discordwebhook import Discord
 import matplotlib.pyplot as plt
+from zc import lockfile
+from zc.lockfile import LockError
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +31,13 @@ config.read(configfile)
 section1 = 'discord'
 webhook_url = config.get(section1, 'webhook')
 discord = Discord(url=webhook_url)
+webhook_error_url = config.get(section1, 'webhook4error', fallback=webhook_url)
+discord_error = Discord(url=webhook_error_url)
 
 section2 = 'fgodata'
 repo = config.get(section2, 'repository')
 fgodata = repo.replace("https://github.com/", "").replace(".git", "")
-fgodata_dir = 'FGOData'
+fgodata_dir = fgodata.split("/")[-1]
 fgodata_local_repo = basedir.parent / fgodata_dir
 repo = git.Repo(fgodata_local_repo)
 origin = repo.remotes.origin
@@ -42,7 +46,7 @@ sha_json = "github_sha.json"
 data_json = "fgoupdate.json"
 mstver_file = "mstver.json"
 mstQuest_file = "JP_tables/quest/mstQuest.json"
-mstQuestInfo_file = "/JP_tables/quest/viewQuestInfo.json"
+mstQuestInfo_file = "JP_tables/quest/viewQuestInfo.json"
 mstQuestPhase_file = "JP_tables/quest/mstQuestPhase.json"
 mstEventMission_file = "JP_tables/event/mstEventMission.json"
 mstEvent_file = "JP_tables/event/mstEvent.json"
@@ -58,7 +62,7 @@ mstSkillDetail_file = "JP_tables/skill/mstSkillDetail.json"
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
              8: "盾", 9: "裁", 10: "分", 11: "讐", 12: "?", 17: "?", 20: "?",
-             22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?", 1001: "?"
+             22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?", 97: "?", 1001: "?"
             }
 
 
@@ -103,12 +107,61 @@ def check_datavar(main_data, updatefiles):
     logger.debug("prev_dateVar: %s", prev_mstver["dateVer"])
     logger.debug("dateVar: %s", mstver["dateVer"])
     if prev_mstver["dateVer"] != mstver["dateVer"]:
-        logger.info("mohe")
         discord.post(username="FGO アップデート",
                      embeds=[{"title": "データ更新",
                               "description": "Version: " + str(mstver["appVer"]) + " DataVer: " + str(mstver["dataVer"]),
                               "color": 5620992}])
     return {"mstver": mstver}
+
+
+def output_quest(q_list, title):
+    # fields の内容を事前作成
+    date_items = []
+    prev_openedAt = 0
+    prev_closedAt = 0
+    items = []
+    # 時間を分けたデータを作成
+    for i, quest in enumerate(q_list):
+        openedAt = datetime.fromtimestamp(quest[4])
+        closedAt = datetime.fromtimestamp(quest[5])
+        if i == 0:
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items.append(','.join([str(n) for n in quest[:-2]]))
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+        elif prev_openedAt == openedAt and prev_closedAt == closedAt:
+            items.append(','.join([str(n) for n in quest[:-2]]))
+        else:
+            date_item = {"date": itemdate, "items": items}
+            date_items.append(date_item)
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items = []
+            items.append(','.join([str(n) for n in quest[:-2]]))
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+    if len(items) > 0:
+        date_item = {"date": itemdate, "items": items}
+        date_items.append(date_item)
+    # filedを作成
+    fields = []
+    for date_item in date_items:
+        logger.debug(date_item)
+        field = [{"name": "日時",
+                 "value": date_item["date"]
+                  },
+                 {
+                  "name": "クエスト",
+                  "value": '\n'.join(['- ' + n for n in date_item["items"]])
+                  }]
+        fields += field
+    logger.debug(fields)
+
+    if len(fields) != 0:
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                                "title": title + "更新",
+                                "fields": fields,
+                                "color": 5620992}])
 
 
 def check_quests(main_data, updatefiles):
@@ -138,48 +191,26 @@ def check_quests(main_data, updatefiles):
         if "種火集め" in quest["name"] or "宝物庫" in quest["name"] \
            or "修練場" in quest["name"]:
             continue
-        if quest["closedAt"] == 1901199599:
+        if quest["closedAt"] == 1901199599 or quest["closedAt"] < time.time():
+            continue
+        if "高難易度" in quest["name"]:
+            enemy = questId2classIds[quest["id"]]
+            q_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], list2class(enemy), quest["openedAt"], quest["closedAt"]])
             continue
         for q in mstQuestInfo_list:
             if q["questId"] == quest["id"]:
                 enemy = questId2classIds[quest["id"]]
                 if quest["id"] > 94000000:
-                    q_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], list2class(enemy)])
+                    q_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], list2class(enemy), quest["openedAt"], quest["closedAt"]])
                 else:
-                    fq_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], list2class(enemy)])
+                    fq_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], list2class(enemy), quest["openedAt"], quest["closedAt"]])
                 break
+
     logger.debug(q_list)
     logger.debug(fq_list)
-    output = ""
-    for q in q_list:
-        # すでにデータベースにあった場合加えない
-        s = ','.join([str(n) for n in q])
-        output += s + '\n'
-        mstquest.append(q[0])
+    output_quest(q_list, "イベントクエスト")
+    output_quest(fq_list, "恒常フリークエスト")
 
-    if output != "":
-        discord.post(username="FGO アップデート",
-                     embeds=[{"title": "イベントクエスト更新",
-                              "description": output,
-                              "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(quest_content),
-        #               headers={'Content-Type': 'application/json'})
-    output = ""
-    for q in fq_list:
-        # すでにデータベースにあった場合加えない
-        s = ','.join([str(n) for n in q])
-        output += s + '\n'
-        mstquest.append(q[0])
-
-    if output != "":
-        discord.post(username="FGO アップデート",
-                     embeds=[{"title": "恒常フリークエスト更新",
-                              "description": output,
-                              "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(quest_content),
-        #               headers={'Content-Type': 'application/json'})
     return {"mstquest": mstquest}
 
 
@@ -329,16 +360,52 @@ def output_shop(shop_list, shopname):
     """
     ショップデータを出力する
     """
-    if len(shop_list) != 0:
+    # fields の内容を事前作成
+    date_items = []
+    prev_openedAt = 0
+    prev_closedAt = 0
+    items = []
+    # 時間を分けたデータを作成
+    for i, item in enumerate(shop_list):
+        openedAt = datetime.fromtimestamp(item["openedAt"])
+        closedAt = datetime.fromtimestamp(item["closedAt"])
+        if i == 0:
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items.append(item["name"])
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+        elif prev_openedAt == openedAt and prev_closedAt == closedAt:
+            items.append(item["name"])
+        else:
+            date_item = {"date": itemdate, "items": items}
+            date_items.append(date_item)
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items = []
+            items.append(item["name"])
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+    if len(items) > 0:
+        date_item = {"date": itemdate, "items": items}
+        date_items.append(date_item)
+    # filedを作成
+    fields = []
+    for date_item in date_items:
+        logger.debug(date_item)
+        field = [{"name": "日時",
+                 "value": date_item["date"]
+                  },
+                 {
+                  "name": "アイテム",
+                  "value": '\n'.join(['- ' + n for n in date_item["items"]])
+                  }]
+        fields += field
+    logger.debug(fields)
+
+    if len(fields) != 0:
         discord.post(username="FGO アップデート",
                      embeds=[{
                                 "title": shopname + "更新",
-                                "fields": [
-                                    {
-                                        "name": "内容",
-                                        "value": '\n'.join(['- ' + n["name"] for n in shop_list])
-                                    }
-                                ],
+                                "fields": fields,
                                 "color": 5620992}])
         # requests.post(webhook_url,
         #               json.dumps(shop_content),
@@ -429,6 +496,7 @@ def check_svtfilter(main_data, updatefiles):
         mstsvtfilter.append(svtFilter["id"])
     return {"mstsvtfilter": mstsvtfilter}
 
+
 def plot_equiipExp(name, mc_exp):
     """
     マスター装備の必要経験値をプロットする
@@ -440,13 +508,13 @@ def plot_equiipExp(name, mc_exp):
     level = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     mcChaldea_exp = [0, 10000, 40000, 100000, 220000,
-                   460000, 940000, 1900000, 3820000, 7660000]
+                     460000, 940000, 1900000, 3820000, 7660000]
     mcStd_exp = [0, 1569000, 4707000, 9414000, 15690000,
-               23535000, 32949000, 43932000, 56484000, 70605000]
+                 23535000, 32949000, 43932000, 56484000, 70605000]
     mcLmited_exp = [0, 53000, 132500, 305000, 609000,
-                  1218000, 2200000, 3727000, 5963000, 8950000]
+                    1218000, 2200000, 3727000, 5963000, 8950000]
     mcArctic_exp = [0, 3451800, 10355400, 20710800, 34518000,
-                  51777000, 72487800, 96650400, 124264800, 155331000]
+                    51777000, 72487800, 96650400, 124264800, 155331000]
     ax.plot(level, mcChaldea_exp)
     ax.plot(level, mcStd_exp)
     ax.plot(level, mcLmited_exp)
@@ -460,11 +528,12 @@ def plot_equiipExp(name, mc_exp):
     savefile = os.path.join(tmpdir.name, 'mcfig.png')
     plt.savefig(savefile)
     discord.post(username="FGO アップデート",
-        file={
-            "file1": open(savefile, "rb"),
-        },
-    )
+                 file={
+                       "file1": open(savefile, "rb"),
+                       },
+                 )
     tmpdir.cleanup()
+
 
 def check_mstEquip(main_data, updatefiles):
     """
@@ -485,7 +554,7 @@ def check_mstEquip(main_data, updatefiles):
     mstequip = main_data["mstEquip"]
     logger.debug("mstequip: %s", mstequip)
     mstEquip_list = [m for m in mstEquip
-                         if m["id"] not in mstequip]
+                     if m["id"] not in mstequip]
     logger.debug("mstEquip_list: %s", mstEquip_list)
     for equip in mstEquip_list:
         skill1_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 1][0]
@@ -502,7 +571,7 @@ def check_mstEquip(main_data, updatefiles):
                                         "name": "詳細",
                                         "value": '```' + equip["detail"] + '```'
                                     },
-                                          {
+                                    {
                                         "name": "スキル1",
                                         "value": [k["name"] for k in mstSkill
                                                   if k["id"] == skill1_id
@@ -526,11 +595,38 @@ def check_mstEquip(main_data, updatefiles):
                                 ],
                                 "color": 5620992}])
         plot_equiipExp(equip["name"], mc_exp)
-    for l in mstEquip_list:
-        mstequip.append(l["id"])
+    for equip in mstEquip_list:
+        mstequip.append(equip["id"])
     return {"mstEquip": mstequip}
 
 
+def lock_or_through(func):
+    '''
+    ロックファイルによる排他制御デコレータ
+    ロックされている場合は処理自体をスルー
+    '''
+    def lock(*args, **kwargs):
+        lock = None
+        try:
+            lock = lockfile.LockFile('lock')
+        except LockError:
+            logger.error("locked")
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "Error",
+                                "description": "Proccess locked",
+                                "color": 15158332}])
+            return
+
+        func(*args, **kwargs)
+
+        # 対象のpidが有効でなければロックされないので例外が出ても実質問題無し
+        lock.close()
+
+    return lock
+
+
+@lock_or_through
 def main():
     filename = basedir / Path(data_json)
     mystic_code_init = [1, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 150, 160, 170]
@@ -551,13 +647,76 @@ def main():
 
     if check_update():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
-        new_data = check_datavar(main_data, updatefiles)
-        new_data.update(check_quests(main_data, updatefiles))
-        new_data.update(check_missions(main_data, updatefiles))
-        new_data.update(check_event(main_data, updatefiles))
-        new_data.update(check_shop(main_data, updatefiles))
-        new_data.update(check_svtfilter(main_data, updatefiles))
-        new_data.update(check_mstEquip(main_data, updatefiles))
+        try:
+            new_data = check_datavar(main_data, updatefiles)
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_datavar Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data = {"mstver": main_data["mstver"]}
+        try:
+            new_data.update(check_quests(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_quests Error",
+                                "description": str(e),
+                                "color": 15158332}])
+            new_data.update({"mstquest": main_data["mstquest"]})
+        try:
+            new_data.update(check_missions(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_missions Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data.update({"mstmission": main_data["mstmission"]})
+        try:
+            new_data.update(check_event(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_event Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data.update({"mstevent": main_data["mstevent"]})
+        try:
+            new_data.update(check_shop(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_shop Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data.update({"mstshop": main_data["mstshop"]})
+        try:
+            new_data.update(check_svtfilter(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_svtfilter Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data.update({"mstsvtfilter": main_data["mstsvtfilter"]})
+        try:
+            new_data.update(check_mstEquip(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_mstEquip Error",
+                                "description": e,
+                                "color": 15158332}])
+            new_data.update({"mstEquip": main_data["mstEquip"]})
         logger.debug(new_data)
         with open(filename, mode="w", encoding="UTF-8") as fout:
             fout.write(json.dumps(new_data))
