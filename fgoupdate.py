@@ -58,12 +58,16 @@ mstEquipExp_file = "JP_tables/equip/mstEquipExp.json"
 mstEquipSkill_file = "JP_tables/equip/mstEquipSkill.json"
 mstSkill_file = "JP_tables/skill/mstSkill.json"
 mstSkillDetail_file = "JP_tables/skill/mstSkillDetail.json"
+mstClass_file = "JP_tables/class/mstClass.json"
+mstSvt = []
 
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
              8: "盾", 9: "裁", 10: "分", 11: "讐", 12: "?", 17: "?", 20: "?",
              22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?", 97: "?", 1001: "?"
             }
+
+cost2rarity = {16: "★5", 12: "★4", 7: "★3", 4: "★2", 3: "★1", 0: "★4", 9: "9?", 1: "1?", 5: "5?"}
 
 
 def list2class(enemy):
@@ -112,6 +116,37 @@ def check_datavar(main_data, updatefiles):
                               "description": "Version: " + str(mstver["appVer"]) + " DataVer: " + str(mstver["dataVer"]),
                               "color": 5620992}])
     return {"mstver": mstver}
+
+
+def check_svt(main_data, updatefiles):
+    """
+    サーヴァントをチェックする
+    """
+    if mstSvt_file not in updatefiles:
+        return {"mstsvt": main_data["mstsvt"]}
+    with open(basedir.parent / fgodata_dir / Path(mstClass_file), encoding="UTF-8") as f:
+        mstClass = json.load(f)
+
+    mstsvt = main_data["mstsvt"]
+    logger.debug("mstsvt: %s", mstsvt)
+    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] not in mstsvt and q["collectionNo"] > 302]
+    logger.debug("mstSvt_list: %s", mstSvt_list)
+    id2class = {c["id"]: c["name"] for c in mstClass}
+    # id2card = {1: "A", 2: "B", 3: "Q"}
+    desps = []
+    for svt in mstSvt_list:
+        desp = "[" + "- No." + str(svt["collectionNo"])
+        desp += ' ' + cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ' + svt["name"] + "]"
+        desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + ")"
+        desps.append(desp)
+    if len(desps) != 0:
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                              "title": "サーヴァント新規追加",
+                              "description": '\n'.join(desps),
+                              "color": 5620992}])
+    m1 = [m["id"] for m in mstSvt_list]
+    return {"mstsvt": mstsvt + m1}
 
 
 def output_quest(q_list, title):
@@ -210,8 +245,10 @@ def check_quests(main_data, updatefiles):
     logger.debug(fq_list)
     output_quest(q_list, "イベントクエスト")
     output_quest(fq_list, "恒常フリークエスト")
+    m1 = [m[0] for m in q_list]
+    m2 = [m[0] for m in fq_list]
 
-    return {"mstquest": mstquest}
+    return {"mstquest": mstquest + m1 + m2}
 
 
 def check_mastermissions(mstEventMission_list):
@@ -375,13 +412,13 @@ def output_shop(shop_list, shopname):
             prev_openedAt = openedAt
             prev_closedAt = closedAt
         elif prev_openedAt == openedAt and prev_closedAt == closedAt:
-            items.append(item["name"])
+            items.append(item["name"] + "x" + item["limitNum"])
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
             itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
             items = []
-            items.append(item["name"])
+            items.append(item["name"] + "x" + item["limitNum"])
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
@@ -468,14 +505,12 @@ def check_svtfilter(main_data, updatefiles):
         return {"mstsvtfilter": main_data["mstsvtfilter"]}
     with open(basedir.parent / fgodata_dir / Path(mstSvtFilter_file), encoding="UTF-8") as f:
         mstSvtFilter = json.load(f)
-    with open(basedir.parent / fgodata_dir / Path(mstSvt_file), encoding="UTF-8") as f:
-        mstSvt = json.load(f)
-    cost = {16: "★5", 12: "★4", 7: "★3", 4: "★2", 3: "★1", 0: "★4", 9: "9?", 1: "1?", 5: "5?"}
+    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["collectionNo"] not in mstSvt and q["collectionNo"] != 0]
     mstsvtfilter = main_data["mstsvtfilter"]
     logger.debug("mstsvtfilter: %s", mstsvtfilter)
     mstSvtFilter_list = [m for m in mstSvtFilter
                          if m["id"] not in mstsvtfilter]
-    mstSvtF_dic = {m["id"]: cost[m["cost"]] + ' ' + m["name"] + '〔' + class_dic[m["classId"]] + '〕' for m in mstSvt}
+    mstSvtF_dic = {m["id"]: cost2rarity[m["cost"]] + ' ' + m["name"] + '〔' + class_dic[m["classId"]] + '〕' for m in mstSvt_list}
     logger.debug(mstSvtF_dic)
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
     for svtFilter in mstSvtFilter_list:
@@ -633,6 +668,8 @@ def main():
     if filename.exists():
         f1 = open(filename, 'r')
         main_data = json.load(f1)
+        if "mstsvt" not in main_data.keys():
+            main_data["mstsvt"] = []
         if "mstshop" not in main_data.keys():
             main_data["mstshop"] = []
         if "mstsvtfilter" not in main_data.keys():
@@ -647,6 +684,10 @@ def main():
 
     if check_update():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
+        if mstSvtFilter_file in updatefiles or mstSvt_file in updatefiles:
+            global mstSvt
+            with open(basedir.parent / fgodata_dir / Path(mstSvt_file), encoding="UTF-8") as f:
+                mstSvt = json.load(f)
         try:
             new_data = check_datavar(main_data, updatefiles)
         except Exception as e:
@@ -657,6 +698,16 @@ def main():
                                 "description": e,
                                 "color": 15158332}])
             new_data = {"mstver": main_data["mstver"]}
+        try:
+            new_data.update(check_svt(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_svt Error",
+                                "description": str(e),
+                                "color": 15158332}])
+            new_data.update({"mstquest": main_data["mstquest"]})
         try:
             new_data.update(check_quests(main_data, updatefiles))
         except Exception as e:
