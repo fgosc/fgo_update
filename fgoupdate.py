@@ -59,6 +59,7 @@ mstEquipSkill_file = "JP_tables/equip/mstEquipSkill.json"
 mstSkill_file = "JP_tables/skill/mstSkill.json"
 mstSkillDetail_file = "JP_tables/skill/mstSkillDetail.json"
 mstClass_file = "JP_tables/class/mstClass.json"
+mstGacha_file = "JP_tables/gacha/mstGacha.json"
 mstSvt = []
 
 class_dic = {
@@ -116,6 +117,82 @@ def check_datavar(main_data, updatefiles):
                               "description": "Version: " + str(mstver["appVer"]) + " DataVer: " + str(mstver["dataVer"]),
                               "color": 5620992}])
     return {"mstver": mstver}
+
+
+def output_gacha(gacha_list):
+    """
+    ガチャデータを出力する
+    """
+    # fields の内容を事前作成
+    date_items = []
+    prev_openedAt = 0
+    prev_closedAt = 0
+    items = []
+    # 時間を分けたデータを作成
+    for i, item in enumerate(gacha_list):
+        openedAt = datetime.fromtimestamp(item["openedAt"])
+        closedAt = datetime.fromtimestamp(item["closedAt"])
+        if i == 0:
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+        elif prev_openedAt == openedAt and prev_closedAt == closedAt:
+            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+        else:
+            date_item = {"date": itemdate, "items": items}
+            date_items.append(date_item)
+            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            items = []
+            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+            prev_openedAt = openedAt
+            prev_closedAt = closedAt
+    if len(items) > 0:
+        date_item = {"date": itemdate, "items": items}
+        date_items.append(date_item)
+    # filedを作成
+    fields = []
+    for date_item in date_items:
+        logger.debug(date_item)
+        field = [{"name": "日時",
+                 "value": date_item["date"]
+                  },
+                 {
+                  "name": "項目",
+                  "value": '\n'.join(['- ' + n for n in date_item["items"]])
+                  }]
+        fields += field
+    logger.debug(fields)
+
+    if len(fields) != 0:
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                                "title": "ガチャ更新",
+                                "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
+                                "fields": fields,
+                                "color": 5620992}])
+        # requests.post(webhook_url,
+        #               json.dumps(shop_content),
+        #               headers={'Content-Type': 'application/json'})
+
+
+def check_gacha(main_data, updatefiles):
+    """
+    ガチャをチェックする
+    """
+    if mstGacha_file not in updatefiles:
+        return {"mstgacha": main_data["mstgacha"]}
+    with open(basedir.parent / fgodata_dir / Path(mstGacha_file), encoding="UTF-8") as f:
+        mstGacha = json.load(f)
+
+    mstgacha = main_data["mstgacha"]
+    logger.debug("mstgacha: %s", mstgacha)
+    mstGacha_list = [g for g in mstGacha if g["id"] not in mstgacha and g["openedAt"] >= 1610701200]
+    logger.debug("mstGacha_list: %s", mstGacha_list)
+    output_gacha(mstGacha_list)
+    m1 = [m["id"] for m in mstGacha_list]
+
+    return {"mstgacha": mstgacha + m1}
 
 
 def check_svt(main_data, updatefiles):
@@ -408,17 +485,17 @@ def output_shop(shop_list, shopname):
         closedAt = datetime.fromtimestamp(item["closedAt"])
         if i == 0:
             itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
-            items.append(item["name"])
+            items.append(item["name"] + "x" + str(item["limitNum"]))
             prev_openedAt = openedAt
             prev_closedAt = closedAt
         elif prev_openedAt == openedAt and prev_closedAt == closedAt:
-            items.append(item["name"] + "x" + item["limitNum"])
+            items.append(item["name"] + "x" + str(item["limitNum"]))
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
             itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
             items = []
-            items.append(item["name"] + "x" + item["limitNum"])
+            items.append(item["name"] + "x" + str(item["limitNum"]))
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
@@ -668,6 +745,8 @@ def main():
     if filename.exists():
         f1 = open(filename, 'r')
         main_data = json.load(f1)
+        if "mstgacha" not in main_data.keys():
+            main_data["mstgacha"] = []
         if "mstsvt" not in main_data.keys():
             main_data["mstsvt"] = []
         if "mstshop" not in main_data.keys():
@@ -680,7 +759,7 @@ def main():
         main_data = {"mstver": {"appVer": "", "dataVer": 0, "dateVer": 0},
                      "mstquest": [], "mstmission": [], "mstevent": [],
                      "mstshop": [], "mstsvtfilter": [],
-                     "mstEquip": mystic_code_init}
+                     "mstEquip": mystic_code_init, "mstsvt": [], "mstgacha": []}
 
     if check_update():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
@@ -699,6 +778,16 @@ def main():
                                 "color": 15158332}])
             new_data = {"mstver": main_data["mstver"]}
         try:
+            new_data.update(check_gacha(main_data, updatefiles))
+        except Exception as e:
+            logger.exception(e)
+            discord_error.post(username="FGO アップデート",
+                               embeds=[{
+                                "title": "check_gacha Error",
+                                "description": str(e),
+                                "color": 15158332}])
+            new_data.update({"mstgacha": main_data["mstgacha"]})
+        try:
             new_data.update(check_svt(main_data, updatefiles))
         except Exception as e:
             logger.exception(e)
@@ -707,7 +796,7 @@ def main():
                                 "title": "check_svt Error",
                                 "description": str(e),
                                 "color": 15158332}])
-            new_data.update({"mstquest": main_data["mstquest"]})
+            new_data.update({"mstsvt": main_data["mstsvt"]})
         try:
             new_data.update(check_quests(main_data, updatefiles))
         except Exception as e:
