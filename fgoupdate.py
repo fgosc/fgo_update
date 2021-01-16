@@ -171,15 +171,23 @@ def output_gacha(gacha_list):
                   "value": '\n'.join(['- ' + n for n in date_item["items"]])
                   }]
         fields += field
-    logger.debug(fields)
+    logger.debug("filelds: %s", fields)
 
     if len(fields) != 0:
+        # 投稿できるfield 数に制限があるので分ける
         discord.post(username="FGO アップデート",
                      embeds=[{
                                 "title": "ガチャ更新",
                                 "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
-                                "fields": fields,
+                                "fields": fields[:20],
                                 "color": 5620992}])
+        if len(fields) >= 20:
+            discord.post(username="FGO アップデート",
+                         embeds=[{
+                                    "title": "ガチャ更新",
+                                    "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
+                                    "fields": fields[20:],
+                                    "color": 5620992}])
 
 
 def check_gacha(main_data, updatefiles):
@@ -188,12 +196,16 @@ def check_gacha(main_data, updatefiles):
     """
     if mstGacha_file not in updatefiles:
         return {"mstgacha": main_data["mstgacha"]}
+    exclude_id = [1, 101, 21001]  # ストーリー召喚、チュートリアル召喚、フレンドポイント召喚
     with open(basedir.parent / fgodata_dir / Path(mstGacha_file), encoding="UTF-8") as f:
         mstGacha = json.load(f)
 
     mstgacha = main_data["mstgacha"]
     logger.debug("mstgacha: %s", mstgacha)
-    mstGacha_list = [g for g in mstGacha if g["id"] not in mstgacha and g["openedAt"] >= 1610701200]
+    mstGacha_list = [g for g in mstGacha
+                     if g["id"] not in mstgacha
+                     and g["id"] not in exclude_id
+                     and g["closedAt"] > time.time()]
     logger.debug("mstGacha_list: %s", mstGacha_list)
     output_gacha(mstGacha_list)
     m1 = [m["id"] for m in mstGacha_list]
