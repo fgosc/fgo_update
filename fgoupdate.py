@@ -12,7 +12,6 @@ import os
 
 import git
 from discordwebhook import Discord
-import matplotlib.pyplot as plt
 from zc import lockfile
 from zc.lockfile import LockError
 
@@ -52,15 +51,25 @@ mstEventMission_file = "JP_tables/event/mstEventMission.json"
 mstEvent_file = "JP_tables/event/mstEvent.json"
 mstShop_file = "JP_tables/shop/mstShop.json"
 mstSvt_file = "JP_tables/svt/mstSvt.json"
+mstSvtLimit_file = "JP_tables/svt/mstSvtLimit.json"
 mstSvtFilter_file = "JP_tables/svt/mstSvtFilter.json"
+mstSvtSkill_file = "JP_tables/svt/mstSvtSkill.json"
 mstEquip_file = "JP_tables/equip/mstEquip.json"
 mstEquipExp_file = "JP_tables/equip/mstEquipExp.json"
 mstEquipSkill_file = "JP_tables/equip/mstEquipSkill.json"
 mstSkill_file = "JP_tables/skill/mstSkill.json"
 mstSkillDetail_file = "JP_tables/skill/mstSkillDetail.json"
+mstSkillLv_file = "JP_tables/skill/mstSkillLv.json"
+mstFunc_file = "JP_tables/func/mstFunc.json"
 mstClass_file = "JP_tables/class/mstClass.json"
 mstGacha_file = "JP_tables/gacha/mstGacha.json"
+mstTreasureDevice_file = "JP_tables/treasure/mstTreasureDevice.json"
+mstTreasureDeviceDetail_file = "JP_tables/treasure/mstTreasureDeviceDetail.json"
 mstSvt = []
+mstSkill = []
+mstSkillDetail = []
+mstSkillLv = []
+mstFunc = []
 
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
@@ -171,9 +180,6 @@ def output_gacha(gacha_list):
                                 "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
                                 "fields": fields,
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(shop_content),
-        #               headers={'Content-Type': 'application/json'})
 
 
 def check_gacha(main_data, updatefiles):
@@ -195,32 +201,124 @@ def check_gacha(main_data, updatefiles):
     return {"mstgacha": mstgacha + m1}
 
 
+def make_svtStatus(svt, mstSvtLimit):
+    """
+    サーヴァントのステータスを作成
+    """
+    hp = [s["hpMax"] for s in mstSvtLimit if s["svtId"] == svt["id"] and s["limitCount"] == 4][0]
+    atk = [s["atkMax"] for s in mstSvtLimit if s["svtId"] == svt["id"] and s["limitCount"] == 4][0]
+    desp = "**ステータス**\n"
+    desp += "HP " + '{:,}'.format(hp) + ", ATK " + '{:,}'.format(atk) + ", COST " + str(svt["cost"]) + "\n"
+    desp += "\n"
+    return desp
+
+
+def make_svtSkill(svt, mstSvtSkill):
+    """
+    サーヴァントのスキルを作成
+    """
+    skill1_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 1][0]
+    skill2_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 2][0]
+    skill3_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 3][0]
+    skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
+    skill2_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill2_id and s["lv"] == 1][0]
+    skill3_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill3_id and s["lv"] == 1][0]
+
+    # 保有スキルを出力
+    desp = "**保有スキル:**\n"
+    desp += "__スキル1__ チャージタイム||" + str(skill1_ct) + "\n"
+    desp += [k["name"] for k in mstSkill
+             if k["id"] == skill1_id][0] + "\n"
+    desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+    desp += "\n\n"
+    desp += "__スキル2__ チャージタイム||" + str(skill2_ct) + "\n"
+    desp += [k["name"] for k in mstSkill
+             if k["id"] == skill2_id][0] + "\n"
+    desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill2_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+    desp += "\n\n"
+    desp += "__スキル3__ チャージタイム||" + str(skill3_ct) + "\n"
+    desp += [k["name"] for k in mstSkill
+             if k["id"] == skill3_id][0] + "\n"
+    desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill3_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+    desp += "\n\n"
+
+    return desp
+
+
+def make_svtClassSkill(svt):
+    """
+    サーヴァントのクラススキルを作成
+    """
+    desp = "**クラススキル:**\n"
+    desp += "||"
+    for skillId in svt["classPassive"]:
+        desp += [s["name"] for s in mstSkill if s["id"] == skillId][0] + '\n'
+        desp += [i["detail"] for i in mstSkillDetail if i["id"] == skillId][0].replace("{0}", "Lv")
+        desp += "\n\n"
+    desp += "||"
+
+    desp += "\n"
+
+    return desp
+
+
+def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail):
+    """
+    サーヴァントの宝具を作成
+    """
+    desp = "**宝具:**\n"
+    np = [np for np in mstTreasureDevice if np["seqId"] == svt["id"]][0]
+    desp += np["name"]
+    desp += "(" + np["ruby"] + ")" + "\n"
+    desp += "__ランク__ " + np["rank"] + "\n"
+    desp += "__種別__ " + np["typeText"] + "\n"
+    desp += "```" + [n["detail"] for n in mstTreasureDeviceDetail if n["id"] == np["id"]][0].replace("[{0}]", "[Lv]") + "```" + "\n"
+    desp += "\n"
+    return desp
+
+
 def check_svt(main_data, updatefiles):
     """
     サーヴァントをチェックする
     """
     if mstSvt_file not in updatefiles:
         return {"mstsvt": main_data["mstsvt"]}
+    with open(basedir.parent / fgodata_dir / Path(mstSvtLimit_file), encoding="UTF-8") as f:
+        mstSvtLimit = json.load(f)
+    with open(basedir.parent / fgodata_dir / Path(mstSvtSkill_file), encoding="UTF-8") as f:
+        mstSvtSkill = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstClass_file), encoding="UTF-8") as f:
         mstClass = json.load(f)
+    with open(basedir.parent / fgodata_dir / Path(mstTreasureDevice_file), encoding="UTF-8") as f:
+        mstTreasureDevice = json.load(f)
+    with open(basedir.parent / fgodata_dir / Path(mstTreasureDeviceDetail_file), encoding="UTF-8") as f:
+        mstTreasureDeviceDetail = json.load(f)
 
     mstsvt = main_data["mstsvt"]
     logger.debug("mstsvt: %s", mstsvt)
     mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] not in mstsvt and q["collectionNo"] > 302]
     logger.debug("mstSvt_list: %s", mstSvt_list)
     id2class = {c["id"]: c["name"] for c in mstClass}
-    # id2card = {1: "A", 2: "B", 3: "Q"}
-    desps = []
+    id2card = {1: "A", 2: "B", 3: "Q"}
     for svt in mstSvt_list:
         desp = "[" + "- No." + str(svt["collectionNo"])
         desp += ' ' + cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ' + svt["name"] + "]"
-        desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + ")"
-        desps.append(desp)
-    if len(desps) != 0:
+        desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + ")\n"
+        cards = ""
+        for cardId in svt["cardIds"]:
+            cards += id2card[cardId]
+        desp += "\n"
+
+        desp += make_svtStatus(svt, mstSvtLimit)
+        desp += make_svtSkill(svt, mstSvtSkill)
+        desp += make_svtClassSkill(svt)
+        desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail)
+        desp += "**コマンドカード:**\n"
+        desp += "||" + cards + "||"
         discord.post(username="FGO アップデート",
                      embeds=[{
                               "title": "サーヴァント新規追加",
-                              "description": '\n'.join(desps),
+                              "description": desp,
                               "color": 5620992}])
     m1 = [m["id"] for m in mstSvt_list]
     return {"mstsvt": mstsvt + m1}
@@ -345,9 +443,6 @@ def check_mastermissions(mstEventMission_list):
                                           }
                                          ],
                               "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(mission_content),
-        #               headers={'Content-Type': 'application/json'})
 
 
 def check_eventmissions(mstEventMissionLimited_list):
@@ -368,9 +463,6 @@ def check_eventmissions(mstEventMissionLimited_list):
                                     }
                                 ],
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(limitedMission_content),
-        #               headers={'Content-Type': 'application/json'})
 
 
 def check_dailymissions(mstEventMissionDaily_list):
@@ -391,9 +483,6 @@ def check_dailymissions(mstEventMissionDaily_list):
                                     }
                                 ],
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(dailyMission_content),
-        #               headers={'Content-Type': 'application/json'})
 
 
 def check_missions(main_data, updatefiles):
@@ -462,9 +551,6 @@ def check_event(main_data, updatefiles):
                                     }
                                 ],
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(event_content),
-        #               headers={'Content-Type': 'application/json'})
     for event in mstEvent_list:
         mstevent.append(event["id"])
     return {"mstevent": mstevent}
@@ -521,9 +607,6 @@ def output_shop(shop_list, shopname):
                                 "title": shopname + "更新",
                                 "fields": fields,
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(shop_content),
-        #               headers={'Content-Type': 'application/json'})
 
 
 def check_shop(main_data, updatefiles):
@@ -601,9 +684,6 @@ def check_svtfilter(main_data, updatefiles):
                                     }
                                 ],
                                 "color": 5620992}])
-        # requests.post(webhook_url,
-        #               json.dumps(filter_content),
-        #               headers={'Content-Type': 'application/json'})
     for svtFilter in mstSvtFilter_list:
         mstsvtfilter.append(svtFilter["id"])
     return {"mstsvtfilter": mstsvtfilter}
@@ -613,6 +693,8 @@ def plot_equiipExp(name, mc_exp):
     """
     マスター装備の必要経験値をプロットする
     """
+    # ロードに時間がかかり、かつたまにしか実行されないため遅延 import
+    import matplotlib.pyplot as plt
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
 
@@ -652,17 +734,13 @@ def check_mstEquip(main_data, updatefiles):
     マスター装備の更新チェック
     """
     if mstEquip_file not in updatefiles:
-        return {"mstEquip": main_data["mstEquip"]}
+        return {"mstequip": main_data["mstequip"]}
     with open(basedir.parent / fgodata_dir / Path(mstEquip_file), encoding="UTF-8") as f:
         mstEquip = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstEquipExp_file), encoding="UTF-8") as f:
         mstEquipExp = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstEquipSkill_file), encoding="UTF-8") as f:
         mstEquipSkill = json.load(f)
-    with open(basedir.parent / fgodata_dir / Path(mstSkill_file), encoding="UTF-8") as f:
-        mstSkill = json.load(f)
-    with open(basedir.parent / fgodata_dir / Path(mstSkillDetail_file), encoding="UTF-8") as f:
-        mstSkillDetail = json.load(f)
     mstequip = main_data["mstEquip"]
     logger.debug("mstequip: %s", mstequip)
     mstEquip_list = [m for m in mstEquip
@@ -672,6 +750,16 @@ def check_mstEquip(main_data, updatefiles):
         skill1_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 1][0]
         skill2_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 2][0]
         skill3_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 3][0]
+        # sval を求める
+        # mstFunc->applyTarget
+        skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
+        skill2_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill2_id and s["lv"] == 1][0]
+        skill3_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill3_id and s["lv"] == 1][0]
+        # skill1_val = [s["svals"] for s in mstSkillLv if s["skillId"] == skill1_id]
+        # skill2_val = [s["svals"] for s in mstSkillLv if s["skillId"] == skill2_id]
+        # skill3_val = [s["svals"] for s in mstSkillLv if s["skillId"] == skill3_id]
+        # skill1_funcType0 = [[f["funcType"] for f in mstFunc if f["id"] == func][0] for func in [s["funcId"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]]
+        # logger.info(skill1_funcType0)
         mc_exp = [0] + [e["exp"] for e in mstEquipExp if e["equipId"] == equip["id"]][:-1]
         logger.debug("mc_exp: %s", mc_exp)
         discord.post(username="FGO アップデート",
@@ -687,21 +775,21 @@ def check_mstEquip(main_data, updatefiles):
                                         "name": "スキル1",
                                         "value": [k["name"] for k in mstSkill
                                                   if k["id"] == skill1_id
-                                                  ][0] + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("{0}", "Lv") + '```',
+                                                  ][0] + ' CT' + str(skill1_ct) + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("{0}", "Lv") + '```',
                                         "inline": True
                                     },
                                     {
                                         "name": "スキル2",
                                         "value": [k["name"] for k in mstSkill
                                                   if k["id"] == skill2_id
-                                                  ][0] + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill2_id][0].replace("{0}", "Lv") + '```',
+                                                  ][0] + ' CT' + str(skill2_ct) + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill2_id][0].replace("{0}", "Lv") + '```',
                                         "inline": True
                                     },
                                     {
                                         "name": "スキル3",
                                         "value": [k["name"] for k in mstSkill
                                                   if k["id"] == skill3_id
-                                                  ][0] + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill3_id][0].replace("{0}", "Lv") + '```',
+                                                  ][0] + ' CT' + str(skill3_ct) + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill3_id][0].replace("{0}", "Lv") + '```',
                                         "inline": True
                                     }
                                 ],
@@ -709,7 +797,7 @@ def check_mstEquip(main_data, updatefiles):
         plot_equiipExp(equip["name"], mc_exp)
     for equip in mstEquip_list:
         mstequip.append(equip["id"])
-    return {"mstEquip": mstequip}
+    return {"mstequip": mstequip}
 
 
 def lock_or_through(func):
@@ -753,13 +841,13 @@ def main():
             main_data["mstshop"] = []
         if "mstsvtfilter" not in main_data.keys():
             main_data["mstsvtfilter"] = []
-        if "mstEquip" not in main_data.keys():
-            main_data["mstEquip"] = mystic_code_init
+        if "mstequip" not in main_data.keys():
+            main_data["mstequip"] = mystic_code_init
     else:
         main_data = {"mstver": {"appVer": "", "dataVer": 0, "dateVer": 0},
                      "mstquest": [], "mstmission": [], "mstevent": [],
                      "mstshop": [], "mstsvtfilter": [],
-                     "mstEquip": mystic_code_init, "mstsvt": [], "mstgacha": []}
+                     "mstequip": mystic_code_init, "mstsvt": [], "mstgacha": []}
 
     if check_update():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
@@ -767,6 +855,20 @@ def main():
             global mstSvt
             with open(basedir.parent / fgodata_dir / Path(mstSvt_file), encoding="UTF-8") as f:
                 mstSvt = json.load(f)
+        if mstEquip_file in updatefiles or mstSvt_file in updatefiles:
+            # 複数個所で使用するファイルを読んでおく
+            global mstSkill
+            global mstSkillDetail
+            global mstSkillLv
+            global mstFunc
+            with open(basedir.parent / fgodata_dir / Path(mstSkill_file), encoding="UTF-8") as f:
+                mstSkill = json.load(f)
+            with open(basedir.parent / fgodata_dir / Path(mstSkillDetail_file), encoding="UTF-8") as f:
+                mstSkillDetail = json.load(f)
+            with open(basedir.parent / fgodata_dir / Path(mstSkillLv_file), encoding="UTF-8") as f:
+                mstSkillLv = json.load(f)
+            with open(basedir.parent / fgodata_dir / Path(mstFunc_file), encoding="UTF-8") as f:
+                mstFunc = json.load(f)
         try:
             new_data = check_datavar(main_data, updatefiles)
         except Exception as e:
@@ -856,7 +958,7 @@ def main():
                                 "title": "check_mstEquip Error",
                                 "description": e,
                                 "color": 15158332}])
-            new_data.update({"mstEquip": main_data["mstEquip"]})
+            new_data.update({"mstequip": main_data["mstequip"]})
         logger.debug(new_data)
         with open(filename, mode="w", encoding="UTF-8") as fout:
             fout.write(json.dumps(new_data))
