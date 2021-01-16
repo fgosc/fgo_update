@@ -40,6 +40,7 @@ fgodata_dir = fgodata.split("/")[-1]
 fgodata_local_repo = basedir.parent / fgodata_dir
 repo = git.Repo(fgodata_local_repo)
 origin = repo.remotes.origin
+avatar_url = "https://raw.githubusercontent.com/fgosc/fgo_update/main/info.png"
 
 sha_json = "github_sha.json"
 data_json = "fgoupdate.json"
@@ -122,6 +123,7 @@ def check_datavar(main_data, updatefiles):
     logger.debug("dateVar: %s", mstver["dateVer"])
     if prev_mstver["dateVer"] != mstver["dateVer"]:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{"title": "データ更新",
                               "description": "Version: " + str(mstver["appVer"]) + " DataVer: " + str(mstver["dataVer"]),
                               "color": 5620992}])
@@ -176,6 +178,7 @@ def output_gacha(gacha_list):
     if len(fields) != 0:
         # 投稿できるfield 数に制限があるので分ける
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "ガチャ更新",
                                 "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
@@ -183,6 +186,7 @@ def output_gacha(gacha_list):
                                 "color": 5620992}])
         if len(fields) >= 20:
             discord.post(username="FGO アップデート",
+                         avatar_url=avatar_url,
                          embeds=[{
                                     "title": "ガチャ更新",
                                     "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
@@ -328,6 +332,7 @@ def check_svt(main_data, updatefiles):
         desp += "**コマンドカード:**\n"
         desp += "||" + cards + "||"
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                               "title": "サーヴァント新規追加",
                               "description": desp,
@@ -380,6 +385,7 @@ def output_quest(q_list, title):
 
     if len(fields) != 0:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": title + "更新",
                                 "fields": fields,
@@ -444,6 +450,7 @@ def check_mastermissions(mstEventMission_list):
     """
     if len(mstEventMission_list) != 0:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{"title": "マスターミッション(ウィークリー)更新",
                               "fields": [{
                                           "name": "日時",
@@ -463,6 +470,7 @@ def check_eventmissions(mstEventMissionLimited_list):
     """
     if len(mstEventMissionLimited_list) != 0:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "限定ミッション更新",
                                 "fields": [
@@ -483,6 +491,7 @@ def check_dailymissions(mstEventMissionDaily_list):
     """
     if len(mstEventMissionDaily_list) != 0:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "ミッション(デイリー)更新",
                                 "fields": [
@@ -551,6 +560,7 @@ def check_event(main_data, updatefiles):
             title = "キャンペーン"
 
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": title + "更新",
                                 "fields": [
@@ -615,6 +625,7 @@ def output_shop(shop_list, shopname):
 
     if len(fields) != 0:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": shopname + "更新",
                                 "fields": fields,
@@ -687,6 +698,7 @@ def check_svtfilter(main_data, updatefiles):
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
     for svtFilter in mstSvtFilter_list:
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": svtFilter["name"] + "フィルター更新",
                                 "fields": [
@@ -734,6 +746,7 @@ def plot_equiipExp(name, mc_exp):
     savefile = os.path.join(tmpdir.name, 'mcfig.png')
     plt.savefig(savefile)
     discord.post(username="FGO アップデート",
+                 avatar_url=avatar_url,
                  file={
                        "file1": open(savefile, "rb"),
                        },
@@ -775,6 +788,7 @@ def check_mstEquip(main_data, updatefiles):
         mc_exp = [0] + [e["exp"] for e in mstEquipExp if e["equipId"] == equip["id"]][:-1]
         logger.debug("mc_exp: %s", mc_exp)
         discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "マスター装備更新",
                                 "description": "[" + equip["name"] + "](" + "https://apps.atlasacademy.io/db/#/JP/mystic-code/" + str(equip["id"]) + ")",
@@ -824,6 +838,7 @@ def lock_or_through(func):
         except LockError:
             logger.error("locked")
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "Error",
                                 "description": "Proccess locked",
@@ -886,6 +901,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_datavar Error",
                                 "description": e,
@@ -896,6 +912,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_gacha Error",
                                 "description": str(e),
@@ -906,6 +923,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_svt Error",
                                 "description": str(e),
@@ -916,6 +934,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_quests Error",
                                 "description": str(e),
@@ -926,6 +945,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_missions Error",
                                 "description": e,
@@ -936,6 +956,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_event Error",
                                 "description": e,
@@ -946,6 +967,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_shop Error",
                                 "description": e,
@@ -956,6 +978,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_svtfilter Error",
                                 "description": e,
@@ -966,6 +989,7 @@ def main():
         except Exception as e:
             logger.exception(e)
             discord_error.post(username="FGO アップデート",
+                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "check_mstEquip Error",
                                 "description": e,
