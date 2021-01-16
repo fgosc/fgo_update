@@ -182,6 +182,9 @@ def output_gacha(gacha_list):
                      embeds=[{
                                 "title": "ガチャ更新",
                                 "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
+                                "thumbnail": {
+                                              "url": "https://assets.atlasacademy.io/GameData/JP/Items/6.png"
+                                              },
                                 "fields": fields[:20],
                                 "color": 5620992}])
         if len(fields) >= 20:
@@ -190,6 +193,9 @@ def output_gacha(gacha_list):
                          embeds=[{
                                     "title": "ガチャ更新",
                                     "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
+                                    "thumbnail": {
+                                                  "url": "https://assets.atlasacademy.io/GameData/JP/Items/6.png"
+                                                  },
                                     "fields": fields[20:],
                                     "color": 5620992}])
 
@@ -331,10 +337,21 @@ def check_svt(main_data, updatefiles):
         desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail)
         desp += "**コマンドカード:**\n"
         desp += "||" + cards + "||"
+        if svt["cost"] < 7:
+            color = "1"
+        elif svt["cost"] == 7:
+            color = "2"
+        else:
+            color = "3"
+        icon_url = "https://assets.atlasacademy.io/GameData/JP/ClassIcons/class"
+        thumb_url = icon_url + color + "_" + str(svt["classId"]) + ".png"
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
                               "title": "サーヴァント新規追加",
+                              "thumbnail": {
+                                            "url": thumb_url
+                                            },
                               "description": desp,
                               "color": 5620992}])
     m1 = [m["id"] for m in mstSvt_list]
@@ -452,6 +469,9 @@ def check_mastermissions(mstEventMission_list):
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{"title": "マスターミッション(ウィークリー)更新",
+                              "thumbnail": {
+                                            "url": "https://assets.atlasacademy.io/GameData/JP/Items/16.png"
+                                            },
                               "fields": [{
                                           "name": "日時",
                                           "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMission_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMission_list[0]["endedAt"])) + '```'
@@ -494,6 +514,9 @@ def check_dailymissions(mstEventMissionDaily_list):
                      avatar_url=avatar_url,
                      embeds=[{
                                 "title": "ミッション(デイリー)更新",
+                                "thumbnail": {
+                                              "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                              },
                                 "fields": [
                                     {
                                         "name": "日時",
@@ -624,12 +647,33 @@ def output_shop(shop_list, shopname):
     logger.debug(fields)
 
     if len(fields) != 0:
-        discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
-                     embeds=[{
-                                "title": shopname + "更新",
-                                "fields": fields,
-                                "color": 5620992}])
+        if shopname == "マナプリズム交換":
+            discord.post(username="FGO アップデート",
+                        avatar_url=avatar_url,
+                        embeds=[{
+                                 "title": shopname + "更新",
+                                 "thumbnail": {
+                                               "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                               },
+                                 "fields": fields,
+                                 "color": 5620992}])
+        elif shopname == "レアプリズム交換":
+            discord.post(username="FGO アップデート",
+                        avatar_url=avatar_url,
+                        embeds=[{
+                                 "title": shopname + "更新",
+                                 "thumbnail": {
+                                               "url": "https://assets.atlasacademy.io/GameData/JP/Items/18.png"
+                                               },
+                                 "fields": fields,
+                                 "color": 5620992}])
+        else:
+            discord.post(username="FGO アップデート",
+                        avatar_url=avatar_url,
+                        embeds=[{
+                                    "title": shopname + "更新",
+                                    "fields": fields,
+                                    "color": 5620992}])
 
 
 def check_shop(main_data, updatefiles):
