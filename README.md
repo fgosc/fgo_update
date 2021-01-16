@@ -6,20 +6,23 @@ Atlas Achademy の fgo-changes から発想を得てます
 
 次の更新がpostされます
 - データ更新
+- ガチャ更新
+- 新規サーヴァント追加
+- クエスト更新
+  - イベントフリークエスト・高難易度
+  - 恒常フリークエスト
 - ミッション更新
   - デイリーミッション
   - ウィークリーミッション
   - その他ミッション(イベント内ミッションを除く)
 - イベント・キャンペーン更新
-- クエスト更新
-  - イベントフリークエスト・高難易度
-  - 恒常フリークエスト
 - ショップ更新
   - イベント限定ショップ
   - マナプリズム交換
   - レアプリ交換
   - サウンドプレイヤー
-- フィルター
+- 次回イベントフィルター
+- マスター装備
 
 # 実行環境
 Pythonが動作する環境
@@ -37,7 +40,8 @@ $ pip install -r requirements.txt
 $ cp fgoupdate-dst.ini fgoupdate.ini  
 ```
 ## 設定ファイル fgoappupdate.ini の編集
-- ```webhook= ```のあとにウェブフックURLを入力してください
+- ```webhook= ```のあとにウェブフックURLを入力してください(更新通知用)
+- ```webhook4error= ```のあとにウェブフックURLを入力してください(エラー通知用)
 - ```repository = ```のあとにFGOデータのリポジトリ―のURLを入力してください
 webhookは画面の「ウェブフックURLをコピー」を押すと取得できます
 
@@ -47,6 +51,7 @@ webhookは画面の「ウェブフックURLをコピー」を押すと取得で�
 ```
 [discord]
 webhook = https://discordapp.com/api/webhooks/00000000000000/abcdefghijklmn--ABCDEFGHIJKLMN
+webhook4error = https://discordapp.com/api/webhooks/00000000000000/abcdefghijklmn--ABCDEFGHIJKLMN
 
 [fgodata]
 repository = https://github.com/*****/*****.git
