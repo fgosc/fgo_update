@@ -200,12 +200,24 @@ def output_gacha(gacha_list):
                                     "color": 5620992}])
 
 
+def output_fpgacha():
+    discord.post(username="FGO アップデート",
+                 avatar_url=avatar_url,
+                 embeds=[{
+                          "title": "ガチャ更新",
+                          "thumbnail": {
+                                        "url": "https://assets.atlasacademy.io/GameData/JP/Items/12.png"
+                                        },
+                          "description": "フレンドポイント召喚更新",
+                          "color": 5620992}])
+
+
 def check_gacha(main_data, updatefiles):
     """
     ガチャをチェックする
     """
     if mstGacha_file not in updatefiles:
-        return {"mstgacha": main_data["mstgacha"]}
+        return {"mstgacha": main_data["mstgacha"], "fp_pickupid": main_data["fp_pickupid"]}
     exclude_id = [1, 101, 21001]  # ストーリー召喚、チュートリアル召喚、フレンドポイント召喚
     with open(basedir.parent / fgodata_dir / Path(mstGacha_file), encoding="UTF-8") as f:
         mstGacha = json.load(f)
@@ -220,7 +232,13 @@ def check_gacha(main_data, updatefiles):
     output_gacha(mstGacha_list)
     m1 = [m["id"] for m in mstGacha_list]
 
-    return {"mstgacha": mstgacha + m1}
+    # FPガチャの更新チェック
+    fp_pickupid = [g["pickupId"] for g in mstGacha if g["id"] == 1][0]
+    if fp_pickupid != main_data["fp_pickupid"]:
+        output_fpgacha()
+    fp_pickupid = main_data["fp_pickupid"]
+
+    return {"mstgacha": mstgacha + m1, "fp_pickupid": fp_pickupid}
 
 
 def make_svtStatus(svt, mstSvtLimit):
@@ -649,31 +667,31 @@ def output_shop(shop_list, shopname):
     if len(fields) != 0:
         if shopname == "マナプリズム交換":
             discord.post(username="FGO アップデート",
-                        avatar_url=avatar_url,
-                        embeds=[{
-                                 "title": shopname + "更新",
-                                 "thumbnail": {
-                                               "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
-                                               },
-                                 "fields": fields,
-                                 "color": 5620992}])
+                         avatar_url=avatar_url,
+                         embeds=[{
+                                  "title": shopname + "更新",
+                                  "thumbnail": {
+                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                                },
+                                  "fields": fields,
+                                  "color": 5620992}])
         elif shopname == "レアプリズム交換":
             discord.post(username="FGO アップデート",
-                        avatar_url=avatar_url,
-                        embeds=[{
-                                 "title": shopname + "更新",
-                                 "thumbnail": {
-                                               "url": "https://assets.atlasacademy.io/GameData/JP/Items/18.png"
-                                               },
-                                 "fields": fields,
-                                 "color": 5620992}])
+                         avatar_url=avatar_url,
+                         embeds=[{
+                                  "title": shopname + "更新",
+                                  "thumbnail": {
+                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/18.png"
+                                                },
+                                  "fields": fields,
+                                  "color": 5620992}])
         else:
             discord.post(username="FGO アップデート",
-                        avatar_url=avatar_url,
-                        embeds=[{
-                                    "title": shopname + "更新",
-                                    "fields": fields,
-                                    "color": 5620992}])
+                         avatar_url=avatar_url,
+                         embeds=[{
+                                  "title": shopname + "更新",
+                                  "fields": fields,
+                                  "color": 5620992}])
 
 
 def check_shop(main_data, updatefiles):
@@ -906,6 +924,8 @@ def main():
         main_data = json.load(f1)
         if "mstgacha" not in main_data.keys():
             main_data["mstgacha"] = []
+        if "fp_pickupid" not in main_data.keys():
+            main_data["fp_pickupid"] = 0
         if "mstsvt" not in main_data.keys():
             main_data["mstsvt"] = []
         if "mstshop" not in main_data.keys():
@@ -918,7 +938,7 @@ def main():
         main_data = {"mstver": {"appVer": "", "dataVer": 0, "dateVer": 0},
                      "mstquest": [], "mstmission": [], "mstevent": [],
                      "mstshop": [], "mstsvtfilter": [],
-                     "mstequip": mystic_code_init, "mstsvt": [], "mstgacha": []}
+                     "mstequip": mystic_code_init, "mstsvt": [], "mstgacha": [], "fp_pickupid": 0}
 
     if check_update():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
