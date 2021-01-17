@@ -67,6 +67,7 @@ mstGacha_file = "JP_tables/gacha/mstGacha.json"
 mstTreasureDevice_file = "JP_tables/treasure/mstTreasureDevice.json"
 mstTreasureDeviceDetail_file = "JP_tables/treasure/mstTreasureDeviceDetail.json"
 mstSvt = []
+id2class = {}
 mstSkill = []
 mstSkillDetail = []
 mstSkillLv = []
@@ -327,8 +328,6 @@ def check_svt(main_data, updatefiles):
         mstSvtLimit = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstSvtSkill_file), encoding="UTF-8") as f:
         mstSvtSkill = json.load(f)
-    with open(basedir.parent / fgodata_dir / Path(mstClass_file), encoding="UTF-8") as f:
-        mstClass = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstTreasureDevice_file), encoding="UTF-8") as f:
         mstTreasureDevice = json.load(f)
     with open(basedir.parent / fgodata_dir / Path(mstTreasureDeviceDetail_file), encoding="UTF-8") as f:
@@ -338,7 +337,6 @@ def check_svt(main_data, updatefiles):
     logger.debug("mstsvt: %s", mstsvt)
     mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] not in mstsvt and q["collectionNo"] > 302]
     logger.debug("mstSvt_list: %s", mstSvt_list)
-    id2class = {c["id"]: c["name"] for c in mstClass}
     id2card = {1: "A", 2: "B", 3: "Q"}
     for svt in mstSvt_list:
         desp = "[" + "- No." + str(svt["collectionNo"])
@@ -755,20 +753,31 @@ def check_svtfilter(main_data, updatefiles):
     logger.debug("mstsvtfilter: %s", mstsvtfilter)
     mstSvtFilter_list = [m for m in mstSvtFilter
                          if m["id"] not in mstsvtfilter]
-    mstSvtF_dic = {m["id"]: cost2rarity[m["cost"]] + ' ' + m["name"] + '〔' + class_dic[m["classId"]] + '〕' for m in mstSvt_list}
-    logger.debug(mstSvtF_dic)
+    logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
+    mstSvtF_dic = {m["id"]: {"name": m["name"], "cost": m["cost"], "classId": m["classId"]} for m in mstSvt_list}
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
     for svtFilter in mstSvtFilter_list:
+        svts = {}
+        for svtId in svtFilter["svtIds"]:
+            if mstSvtF_dic[svtId]["classId"] not in svts.keys():
+                svts[mstSvtF_dic[svtId]["classId"]] = [{"name": mstSvtF_dic[svtId]["name"],
+                                                       "cost": mstSvtF_dic[svtId]["cost"]}]
+            else:
+                svts[mstSvtF_dic[svtId]["classId"]].append({"name": mstSvtF_dic[svtId]["name"],
+                                                            "cost": mstSvtF_dic[svtId]["cost"]})
+        svts = sorted(svts.items())
+        logger.info(svts)
+        # filelds を作成
+        fields = []
+        for svt in svts:
+            out = sorted(svt[1], key=lambda x: x['cost'], reverse=True)
+            fields.append({"name": id2class[svt[0]],
+                           "value": '\n'.join(['- ' + cost2rarity[m["cost"]] + " " + m["name"] for m in out])})
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
                                 "title": svtFilter["name"] + "フィルター更新",
-                                "fields": [
-                                    {
-                                        "name": "対象サーヴァント",
-                                        "value": '\n'.join(['- ' + mstSvtF_dic[n] for n in svtFilter["svtIds"]])
-                                    }
-                                ],
+                                "fields": fields,
                                 "color": 5620992}])
     for svtFilter in mstSvtFilter_list:
         mstsvtfilter.append(svtFilter["id"])
@@ -944,8 +953,12 @@ def main():
         updatefiles = repo.git.diff('HEAD~1..HEAD', name_only=True).split('\n')
         if mstSvtFilter_file in updatefiles or mstSvt_file in updatefiles:
             global mstSvt
+            global id2class
             with open(basedir.parent / fgodata_dir / Path(mstSvt_file), encoding="UTF-8") as f:
                 mstSvt = json.load(f)
+            with open(basedir.parent / fgodata_dir / Path(mstClass_file), encoding="UTF-8") as f:
+                mstClass = json.load(f)
+            id2class = {c["id"]: c["name"] for c in mstClass}
         if mstEquip_file in updatefiles or mstSvt_file in updatefiles:
             # 複数個所で使用するファイルを読んでおく
             global mstSkill
