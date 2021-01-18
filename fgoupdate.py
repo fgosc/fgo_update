@@ -66,12 +66,14 @@ mstClass_file = "JP_tables/class/mstClass.json"
 mstGacha_file = "JP_tables/gacha/mstGacha.json"
 mstTreasureDevice_file = "JP_tables/treasure/mstTreasureDevice.json"
 mstTreasureDeviceDetail_file = "JP_tables/treasure/mstTreasureDeviceDetail.json"
+mstItem_file = "JP_tables/item/mstItem.json"
 mstSvt = []
 id2class = {}
 mstSkill = []
 mstSkillDetail = []
 mstSkillLv = []
 mstFunc = []
+id2itemName = {}
 
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
@@ -630,35 +632,60 @@ def output_shop(shop_list, shopname):
     for i, item in enumerate(shop_list):
         openedAt = datetime.fromtimestamp(item["openedAt"])
         closedAt = datetime.fromtimestamp(item["closedAt"])
+        # price = str(item["prices"][0])
+        # limitNum = str(item["limitNum"]) if item["limitNum"] != 0 else "∞"
         if i == 0:
             itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
-            items.append(item["name"] + "x" + str(item["limitNum"]))
+            # items.append(item["name"] + " @" + price + " x" + limitNum)
+            items.append(item)
             prev_openedAt = openedAt
             prev_closedAt = closedAt
         elif prev_openedAt == openedAt and prev_closedAt == closedAt:
-            items.append(item["name"] + "x" + str(item["limitNum"]))
+            # items.append(item["name"] + " @" + price + " x" + limitNum)
+            items.append(item)
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
             itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
             items = []
-            items.append(item["name"] + "x" + str(item["limitNum"]))
+            # items.append(item["name"] + " @" + price + " x" + limitNum)
+            items.append(item)
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
+        items = sorted(sorted(items, key=lambda x: x["id"]), key=lambda x: x["itemIds"][0], reverse=True)
         date_item = {"date": itemdate, "items": items}
         date_items.append(date_item)
+    # ソート
     # filedを作成
     fields = []
     for date_item in date_items:
         logger.debug(date_item)
         field = [{"name": "日時",
                  "value": date_item["date"]
-                  },
-                 {
-                  "name": "アイテム",
-                  "value": '\n'.join(['- ' + n for n in date_item["items"]])
                   }]
+        prev_itemId = 0
+        for i, item in enumerate(date_item["items"]):
+            itemId = item["itemIds"][0]
+            if i == 0:
+                if itemId in [0, 18]:
+                    f = {"name": "アイテム"}
+                else:
+                    f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
+                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                prev_itemId = itemId
+            elif prev_itemId == itemId:
+                f["value"] += "\n- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+            else:
+                field.append(f)
+                if itemId in [0, 18]:
+                    f = {"name": "アイテム"}
+                else:
+                    f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
+                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                prev_itemId = itemId
+        if len(f) > 0:
+            field.append(f)
         fields += field
     logger.debug(fields)
 
@@ -700,10 +727,14 @@ def check_shop(main_data, updatefiles):
     3 レアプリズム
     8 サウンドプレイヤー
     """
-    if mstShop_file not in updatefiles:
-        return {"mstshop": main_data["mstshop"]}
+    # if mstShop_file not in updatefiles:
+    #     return {"mstshop": main_data["mstshop"]}
     with open(basedir.parent / fgodata_dir / Path(mstShop_file), encoding="UTF-8") as f:
         mstShop = json.load(f)
+    with open(basedir.parent / fgodata_dir / Path(mstItem_file), encoding="UTF-8") as f:
+        mstItem = json.load(f)
+    global id2itemName
+    id2itemName = {item["id"]: item["name"] for item in mstItem}
     mstshop = main_data["mstshop"]
     logger.debug("mstshop: %s", mstshop)
     eventShop_list = [m for m in mstShop
@@ -766,7 +797,7 @@ def check_svtfilter(main_data, updatefiles):
                 svts[mstSvtF_dic[svtId]["classId"]].append({"name": mstSvtF_dic[svtId]["name"],
                                                             "cost": mstSvtF_dic[svtId]["cost"]})
         svts = sorted(svts.items())
-        logger.info(svts)
+        logger.debug(svts)
         # filelds を作成
         fields = []
         for svt in svts:
