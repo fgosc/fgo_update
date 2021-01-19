@@ -74,6 +74,8 @@ mstSkillDetail = []
 mstSkillLv = []
 mstFunc = []
 id2itemName = {}
+id2card = {1: "A", 2: "B", 3: "Q"}
+id2card_long = {1: "Arts", 2: "Buster", 3: "Quick"}
 
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
@@ -287,7 +289,7 @@ def make_svtClassSkill(svt):
     return desp
 
 
-def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, spoiler=False):
+def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, mstSvtTreasureDevice, spoiler=False):
     """
     サーヴァントの宝具を作成
     """
@@ -296,7 +298,7 @@ def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, spoiler=False):
         desp += "||"
     np = [np for np in mstTreasureDevice if np["seqId"] == svt["id"]][0]
     desp += np["name"]
-    desp += "(" + np["ruby"] + ")" + "\n"
+    desp += "(" + np["ruby"] + ")" + " " + id2card_long[[np["cardId"] for np in mstSvtTreasureDevice if np["svtId"] == svt["id"]][0]] + "\n"
     desp += "__ランク__ " + np["rank"] + "\n"
     desp += "__種別__ " + np["typeText"] + "\n"
     if spoiler:
@@ -317,6 +319,7 @@ def check_svt(updatefiles, cid="HEAD"):
     mstSvtSkill = json.loads(repo.git.show(cid + ":" + mstSvtSkill_file))
     mstTreasureDevice = json.loads(repo.git.show(cid + ":" + mstTreasureDevice_file))
     mstTreasureDeviceDetail = json.loads(repo.git.show(cid + ":" + mstTreasureDeviceDetail_file))
+    mstSvtTreasureDevice = json.loads(repo.git.show(cid + ":" + mstSvtTreasureDevice_file))
     # 集合演算で新idだけ抽出
     mstSvt = json.loads(repo.git.show(cid + ":" + mstSvt_file))
     svt = set([s["id"] for s in mstSvt if (s["type"] == 1 or s["type"] == 2)])
@@ -330,7 +333,6 @@ def check_svt(updatefiles, cid="HEAD"):
     mstSvt_list2 = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] in gachaIds and q["collectionNo"] == 0]
     mstSvt_list = mstSvt_list1 + mstSvt_list2
     logger.debug("mstSvt_list: %s", mstSvt_list)
-    id2card = {1: "A", 2: "B", 3: "Q"}
     for svt in mstSvt_list:
         try:
             # スキル無しで事前実装されることがあるので
@@ -352,7 +354,7 @@ def check_svt(updatefiles, cid="HEAD"):
             desp += make_svtStatus(svt, mstSvtLimit, spoiler=spoiler)
             desp += make_svtSkills(svt, mstSvtSkill)
             desp += make_svtClassSkill(svt)
-            desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, spoiler=spoiler)
+            desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, mstSvtTreasureDevice, spoiler=spoiler)
             desp += "**コマンドカード:**\n"
             desp += "||" + cards + "||"
             if svt["cost"] < 7:
@@ -377,7 +379,7 @@ def check_svt(updatefiles, cid="HEAD"):
                                   "description": desp,
                                   "color": 5620992}])
         except Exception as e:
-            logger.excption(e)
+            logger.exception(e)
             continue
 
 
@@ -441,7 +443,8 @@ def check_np(updatefiles, cid="HEAD"):
         value = "[" + [n["name"] + "(" + n["ruby"] + ")" for n in mstNp
                        if n["id"] == npId][0] + "]"
     #     skillNum = [s["skillNum"] for s in mstSvtSkill if s["skillId"] == svtSkill][0]
-        value += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + "/noble-phantasms" + ")\n"
+        value += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + "/noble-phantasms" + ")"
+        value += " " + id2card_long[[np["cardId"] for np in mstSvtNp if np["svtId"] == svtId][0]] + "\n"
     #     value += "チャージタイム" + str(skill_ct) + "\n"
         value += [n["detail"] for n in mstNpDetail if n["id"] == npId][0].replace("[{0}]", r"\[Lv\]").replace("[g][o]▲[/o][/g]", ":small_red_triangle:")
         field = {"name": name, "value": value}
