@@ -8,6 +8,7 @@ from pathlib import Path
 import configparser
 import tempfile
 import os
+import re
 
 import git
 from discordwebhook import Discord
@@ -48,6 +49,7 @@ mstQuest_file = "JP_tables/quest/mstQuest.json"
 mstQuestInfo_file = "JP_tables/quest/viewQuestInfo.json"
 mstQuestPhase_file = "JP_tables/quest/mstQuestPhase.json"
 mstEventMission_file = "JP_tables/event/mstEventMission.json"
+mstEventMissionCondition_file = "JP_tables/event/mstEventMissionCondition.json"
 mstEvent_file = "JP_tables/event/mstEvent.json"
 mstShop_file = "JP_tables/shop/mstShop.json"
 mstSvt_file = "JP_tables/svt/mstSvt.json"
@@ -672,6 +674,91 @@ def check_dailymissions(mstEventMissionDaily_list):
                                 "color": 5620992}])
 
 
+def check_raddermissions(mstEventMissionLimited_list, cid):
+    """
+    イベントミッション(はしご式)をチェックする
+    Discord の文字制限2000字を超えるのでファイルで出力
+    """
+    # 一時ファイルをつくらないで投稿する方法が良く分からないのでtempfileを使用
+
+    if len(mstEventMissionLimited_list) != 0:
+        pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
+        pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
+        pattern = pattern1 + " " + pattern2
+
+        mstEventMissionCondition = json.loads(repo.git.show(cid + ":" + mstEventMissionCondition_file))
+        mCondition = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition[::-1]}
+
+        # No. 順出力
+        s = '〔イベントミッションリスト (No. 順)〕\n'
+        s += '開始: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n'
+        s += '終了: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '\n'
+        s += '※開放には条件が必要な場合があります。日付が条件の場合は開始されていても日付を超えてなければプレイできません。\n'
+        s += '\n'
+        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
+        # 開放順出力
+        s += '\n'
+        s += '\n'
+        s += '〔イベントミッションリスト (開放日時順)〕\n'
+
+        # "conditionMessage" で振り分け
+        new_list = []
+        for em in mstEventMissionLimited_list:
+            cond = mCondition[em["id"]]
+            m1 = re.search(pattern, cond)
+            if m1:
+                str_o = r"\g<month>/\g<day> \g<hour>:\g<min>"
+                opendaytime = re.sub(pattern, str_o, m1.group())
+                openedAt = int(
+                                  datetime.strptime(
+                                              str(datetime.fromtimestamp(em["startedAt"]).year) + '/' + opendaytime,
+                                              "%Y/%m/%d %H:%M").timestamp()
+                                  )
+                em["openedAt"] = openedAt
+                em["has_data"] = True
+            else:
+                em["openedAt"] = em["startedAt"]
+            new_list.append(em)
+        new_list = sorted(new_list, key=lambda x: x['openedAt'])
+
+        prev_time = 0
+        for i, l in enumerate(new_list):
+            if prev_time != l['openedAt']:
+                if i != 0:
+                    s += '\n'
+                s += "開放日: " + str(datetime.fromtimestamp(l['openedAt'])) + '\n'
+                prev_time = l['openedAt']
+            s += '- No.' + str(l["dispNo"]) + ' ' + l["detail"] + '\n'
+            # "conditionMessage": "???\n※「1/21 18:00」以降、特定条件達成で開放",
+
+        tmpdir = tempfile.TemporaryDirectory()
+        # 日本語のファイル名には対応していない
+        savefile = os.path.join(tmpdir.name, 'Event Mission List.txt')
+        with open(savefile, mode='w', encoding="UTF-8") as f:
+            f.write(s)
+        discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
+                     file={
+                           "file1": open(savefile, "rb"),
+                           },
+                     )
+        tmpdir.cleanup()
+        # discord.post(username="FGO アップデート",
+        #              avatar_url=avatar_url,
+        #              embeds=[{
+        #                         "title": "イベントミッション更新",
+        #                         "fields": [
+        #                             {
+        #                                 "name": "日時",
+        #                                 "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '```'
+        #                             }, {
+        #                                 "name": "ミッション",
+        #                                 "value": '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
+        #                             }
+        #                         ],
+        #                         "color": 5620992}])
+
+
 def check_missions(updatefiles, cid="HEAD"):
     """
     ミッションをチェックする
@@ -686,21 +773,26 @@ def check_missions(updatefiles, cid="HEAD"):
     eventMissiontIds = list(event - event_prev)
     logger.debug(eventMissiontIds)
 
+    mstRadderMission_list = [m for m in mstEventMission
+                             if m["type"] == 1
+                             and m["id"] in eventMissiontIds]
+    mstRadderMission_list = sorted(mstRadderMission_list, key=lambda x: x["startedAt"])
     mstEventMission_list = [m for m in mstEventMission
                             if m["type"] == 2
                             and m["id"] in eventMissiontIds]
     mstEventMission_list = sorted(mstEventMission_list, key=lambda x: x['closedAt'])
-    mstEventMissionLimited_list = [m for m in mstEventMission
-                                   if m["type"] == 6
-                                   and m["id"] in eventMissiontIds]
-    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['closedAt'])
     mstEventMissionDaily_list = [m for m in mstEventMission
                                  if m["type"] == 3
                                  and m["id"] in eventMissiontIds]
     mstEventMissionDaily_list = sorted(mstEventMissionDaily_list, key=lambda x: x['closedAt'])
+    mstEventMissionLimited_list = [m for m in mstEventMission
+                                   if m["type"] == 6
+                                   and m["id"] in eventMissiontIds]
+    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['closedAt'])
 
-    check_mastermissions(mstEventMission_list)
+    check_raddermissions(mstRadderMission_list, cid)
     check_eventmissions(mstEventMissionLimited_list)
+    check_mastermissions(mstEventMission_list)
     check_dailymissions(mstEventMissionDaily_list)
 
 
