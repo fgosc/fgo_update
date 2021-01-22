@@ -121,7 +121,7 @@ def load_file(filename, cid):
     高速化のため、HEADを読み込むときはgitを使用しないで直に読み込む
     """
     if cid == "HEAD":
-        json_open = open(filename, 'r', encoding="UTF-8")
+        json_open = open(fgodata_local_repo / filename, 'r', encoding="UTF-8")
         json_load = json.load(json_open)
     else:
         json_load = json.loads(repo.git.show(cid + ":" + filename))
