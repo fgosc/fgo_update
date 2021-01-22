@@ -116,6 +116,18 @@ def check_update():
     return False
 
 
+def load_file(filename, cid):
+    """
+    高速化のため、HEADを読み込むときはgitを使用しないで直に読み込む
+    """
+    if cid == "HEAD":
+        json_open = open(filename, 'r', encoding="UTF-8")
+        json_load = json.load(json_open)
+    else:
+        json_load = json.loads(repo.git.show(cid + ":" + filename))
+    return json_load
+
+
 def check_datavar(updatefiles, cid="HEAD"):
     """
     アプリバージョンとデータバージョンをチェックする
@@ -123,7 +135,7 @@ def check_datavar(updatefiles, cid="HEAD"):
     if mstver_file not in updatefiles:
         return
 
-    mstver = json.loads(repo.git.show(cid + ":" + mstver_file))
+    mstver = load_file(mstver_file, cid)
     logger.debug("dateVar: %s", mstver["dateVer"])
     discord.post(username="FGO アップデート",
                  avatar_url=avatar_url,
@@ -209,7 +221,7 @@ def check_gacha(updatefiles, cid="HEAD"):
     if mstGacha_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstGacha = json.loads(repo.git.show(cid + ":" + mstGacha_file))
+    mstGacha = load_file(mstGacha_file, cid)
     gacha = set([g["id"] for g in mstGacha])
     mstGacha_prev = json.loads(repo.git.show(cid + "^:" + mstGacha_file))
     gacha_prev = set([g["id"] for g in mstGacha_prev])
@@ -317,13 +329,13 @@ def check_svt(updatefiles, cid="HEAD"):
     """
     if mstSvt_file not in updatefiles:
         return
-    mstSvtLimit = json.loads(repo.git.show(cid + ":" + mstSvtLimit_file))
-    mstSvtSkill = json.loads(repo.git.show(cid + ":" + mstSvtSkill_file))
-    mstTreasureDevice = json.loads(repo.git.show(cid + ":" + mstTreasureDevice_file))
-    mstTreasureDeviceDetail = json.loads(repo.git.show(cid + ":" + mstTreasureDeviceDetail_file))
-    mstSvtTreasureDevice = json.loads(repo.git.show(cid + ":" + mstSvtTreasureDevice_file))
+    mstSvtLimit = load_file(mstSvtLimit_file, cid)
+    mstSvtSkill = load_file(mstSvtSkill_file, cid)
+    mstTreasureDevice = load_file(mstTreasureDevice_file, cid)
+    mstTreasureDeviceDetail = load_file(mstTreasureDeviceDetail_file, cid)
+    mstSvtTreasureDevice = load_file(mstSvtTreasureDevice_file, cid)
     # 集合演算で新idだけ抽出
-    mstSvt = json.loads(repo.git.show(cid + ":" + mstSvt_file))
+    mstSvt = load_file(mstSvt_file, cid)
     svt = set([s["id"] for s in mstSvt if (s["type"] == 1 or s["type"] == 2)])
     mstSvt_prev = json.loads(repo.git.show(cid + "^:" + mstSvt_file))
     svt_prev = set([s["id"] for s in mstSvt_prev if (s["type"] == 1 or s["type"] == 2)])
@@ -418,17 +430,17 @@ def check_np(updatefiles, cid="HEAD"):
         return
     # 集合演算で新idだけ抽出
     mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
-    mstSvtNp = json.loads(repo.git.show(cid + ":" + mstSvtTreasureDevice_file))
+    mstSvtNp = load_file(mstSvtTreasureDevice_file, cid)
     svtNp = [n["treasureDeviceId"] for n in mstSvtNp if n["priority"] > 101]
 
-    mstNp = json.loads(repo.git.show(cid + ":" + mstTreasureDevice_file))
+    mstNp = load_file(mstTreasureDevice_file, cid)
     np = set([s["id"] for s in mstNp if s["id"] in svtNp])
     mstNp_prev = json.loads(repo.git.show(cid + "^:" + mstTreasureDevice_file))
     np_prev = set([s["id"] for s in mstNp_prev if s["id"] in svtNp])
     npIds = list(np - np_prev)
     logger.debug(npIds)
     # # fields作成
-    mstNpDetail = json.loads(repo.git.show(cid + ":" + mstTreasureDeviceDetail_file))
+    mstNpDetail = load_file(mstTreasureDeviceDetail_file, cid)
 
     fields = []
     for npId in npIds:
@@ -469,7 +481,7 @@ def check_skill(updatefiles, cid="HEAD"):
     # 集合演算で新idだけ抽出
     mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
     mstSvtId_list = [q["id"] for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
-    mstSvtSkill = json.loads(repo.git.show(cid + ":" + mstSvtSkill_file))
+    mstSvtSkill = load_file(mstSvtSkill_file, cid)
     svtSkill = set([s["skillId"] for s in mstSvtSkill if s["svtId"] in mstSvtId_list and s["priority"] > 1])
     mstSvtSkill_prev = json.loads(repo.git.show(cid + "^:" + mstSvtSkill_file))
     svtSkill_prev = set([s["skillId"] for s in mstSvtSkill_prev if s["svtId"] in mstSvtId_list and s["priority"] > 1])
@@ -565,7 +577,7 @@ def check_quests(updatefiles, cid="HEAD"):
     if mstQuest_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstQuest = json.loads(repo.git.show(cid + ":" + mstQuest_file))
+    mstQuest = load_file(mstQuest_file, cid)
     quest = set([s["id"] for s in mstQuest])
     mstQuest_prev = json.loads(repo.git.show(cid + "^:" + mstQuest_file))
     quest_prev = set([s["id"] for s in mstQuest_prev])
@@ -575,8 +587,8 @@ def check_quests(updatefiles, cid="HEAD"):
     mstQuest_list = [q for q in mstQuest if q["id"] in questIds]
     mstQuest_list = sorted(mstQuest_list, key=lambda x: x['openedAt'])
 
-    mstQuestInfo_list = json.loads(repo.git.show(cid + ":" + mstQuestInfo_file))
-    mstQuestPhase_list = json.loads(repo.git.show(cid + ":" + mstQuestPhase_file))
+    mstQuestInfo_list = load_file(mstQuestInfo_file, cid)
+    mstQuestPhase_list = load_file(mstQuestPhase_file, cid)
     questId2classIds = {q["questId"]: q["classIds"]
                         for q in mstQuestPhase_list}
     q_list = []
@@ -686,16 +698,18 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
         pattern = pattern1 + " " + pattern2
 
-        mstEventMissionCondition = json.loads(repo.git.show(cid + ":" + mstEventMissionCondition_file))
+        mstEventMissionCondition = load_file(mstEventMissionCondition_file, cid)
         mCondition = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition[::-1]}
+        mCondition_final = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition}
 
         # No. 順出力
+        mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['dispNo'])
         s = '〔イベントミッションリスト (No. 順)〕\n'
         s += '開始: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n'
         s += '終了: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '\n'
-        s += '※開放には条件が必要な場合があります。日付が条件の場合は開始されていても日付を超えてなければプレイできません。\n'
         s += '\n'
-        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
+#        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
+        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + mCondition_final[n["id"]].split("\n")[0] for n in mstEventMissionLimited_list])
         # 開放順出力
         s += '\n'
         s += '\n'
@@ -728,7 +742,7 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
                     s += '\n'
                 s += "開放日: " + str(datetime.fromtimestamp(l['openedAt'])) + '\n'
                 prev_time = l['openedAt']
-            s += '- No.' + str(l["dispNo"]) + ' ' + l["detail"] + '\n'
+            s += '- No.' + str(l["dispNo"]) + ' ' + mCondition_final[l["id"]] + '\n'
             # "conditionMessage": "???\n※「1/21 18:00」以降、特定条件達成で開放",
 
         tmpdir = tempfile.TemporaryDirectory()
@@ -766,7 +780,7 @@ def check_missions(updatefiles, cid="HEAD"):
     if mstEventMission_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstEventMission = json.loads(repo.git.show(cid + ":" + mstEventMission_file))
+    mstEventMission = load_file(mstEventMission_file, cid)
     event = set([s["id"] for s in mstEventMission])
     mstEventMission_prev = json.loads(repo.git.show(cid + "^:" + mstEventMission_file))
     event_prev = set([s["id"] for s in mstEventMission_prev])
@@ -804,7 +818,7 @@ def check_event(updatefiles, cid="HEAD"):
     if mstEvent_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstEvent = json.loads(repo.git.show(cid + ":" + mstEvent_file))
+    mstEvent = load_file(mstEvent_file, cid)
     event = set([s["id"] for s in mstEvent])
     mstEvent_prev = json.loads(repo.git.show(cid + "^:" + mstEvent_file))
     event_prev = set([s["id"] for s in mstEvent_prev])
@@ -954,14 +968,14 @@ def check_shop(updatefiles, cid="HEAD"):
     if mstShop_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstShop = json.loads(repo.git.show(cid + ":" + mstShop_file))
+    mstShop = load_file(mstShop_file, cid)
     shop = set([s["id"] for s in mstShop])
     mstShop_prev = json.loads(repo.git.show(cid + "^:" + mstShop_file))
     shop_prev = set([s["id"] for s in mstShop_prev])
     shopIds = list(shop - shop_prev)
     logger.debug(shopIds)
 
-    mstItem = json.loads(repo.git.show(cid + ":" + mstItem_file))
+    mstItem = load_file(mstItem_file, cid)
     global id2itemName
     id2itemName = {item["id"]: item["name"] for item in mstItem}
     eventShop_list = [m for m in mstShop
@@ -996,7 +1010,7 @@ def check_svtfilter(updatefiles, cid="HEAD"):
     # if mstSvtFilter_file not in updatefiles:
     #     return
     # 集合演算で新idだけ抽出
-    mstSvtFilter = json.loads(repo.git.show(cid + ":" + mstSvtFilter_file))
+    mstSvtFilter = load_file(mstSvtFilter_file, cid)
     SvtFilter = set([s["id"] for s in mstSvtFilter])
     mstSvtFilter_prev = json.loads(repo.git.show(cid + "^:" + mstSvtFilter_file))
     SvtFilter_prev = set([s["id"] for s in mstSvtFilter_prev])
@@ -1082,15 +1096,15 @@ def check_mstEquip(updatefiles, cid="HEAD"):
     if mstEquip_file not in updatefiles:
         return
     # 集合演算で新idだけ抽出
-    mstEquip = json.loads(repo.git.show(cid + ":" + mstEquip_file))
+    mstEquip = load_file(mstEquip_file, cid)
     Equip = set([s["id"] for s in mstEquip])
     mstEquip_prev = json.loads(repo.git.show(cid + "^:" + mstEquip_file))
     Equip_prev = set([s["id"] for s in mstEquip_prev])
     equipIds = list(Equip - Equip_prev)
     logger.debug(equipIds)
 
-    mstEquipExp = json.loads(repo.git.show(cid + ":" + mstEquipExp_file))
-    mstEquipSkill = json.loads(repo.git.show(cid + ":" + mstEquipSkill_file))
+    mstEquipExp = load_file(mstEquipExp_file, cid)
+    mstEquipSkill = load_file(mstEquipSkill_file, cid)
 
     mstEquip_list = [m for m in mstEquip
                      if m["id"] in equipIds]
@@ -1174,8 +1188,8 @@ def main(args):
         if mstSvtFilter_file in updatefiles or mstSvt_file in updatefiles:
             global mstSvt
             global id2class
-            mstSvt = json.loads(repo.git.show(args.cid + ":" + mstSvt_file))
-            mstClass = json.loads(repo.git.show(args.cid + ":" + mstClass_file))
+            mstSvt = load_file(mstSvt_file, args.cid)
+            mstClass = load_file(mstClass_file, args.cid)
             id2class = {c["id"]: c["name"] for c in mstClass}
         if mstEquip_file in updatefiles or mstSvt_file in updatefiles:
             # 複数個所で使用するファイルを読んでおく
@@ -1183,10 +1197,10 @@ def main(args):
             global mstSkillDetail
             global mstSkillLv
             global mstFunc
-            mstSkill = json.loads(repo.git.show(args.cid + ":" + mstSkill_file))
-            mstSkillDetail = json.loads(repo.git.show(args.cid + ":" + mstSkillDetail_file))
-            mstSkillLv = json.loads(repo.git.show(args.cid + ":" + mstSkillLv_file))
-            mstFunc = json.loads(repo.git.show(args.cid + ":" + mstFunc_file))
+            mstSkill = load_file(mstSkill_file, args.cid)
+            mstSkillDetail = load_file(mstSkillDetail_file, args.cid)
+            mstSkillLv = load_file(mstSkillLv_file, args.cid)
+            mstFunc = load_file(mstFunc_file, args.cid)
         try:
             check_datavar(updatefiles, cid=args.cid)
         except Exception as e:
