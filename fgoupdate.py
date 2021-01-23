@@ -163,9 +163,6 @@ def check_datavar(updatefiles, cid="HEAD"):
         mstEvent_list = sorted(mstEvent_list,
                                key=lambda x: x["type"], reverse=True)
 
-        if len(mstEvent_list) == 0:
-            return
-
         for event in mstEvent_list:
             logger.debug(event["type"])
             if event["type"] == 12:
@@ -815,7 +812,7 @@ def check_dailymissions(EMD_list):
         postCount += 1
 
 
-def check_raddermissions(mstEventMissionLimited_list, cid):
+def check_raddermissions(RM_list, cid):
     """
     イベントミッション(はしご式)をチェックする
     Discord の文字制限2000字を超えるのでファイルで出力
@@ -823,23 +820,26 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
     global postCount
     # 一時ファイルをつくらないで投稿する方法が良く分からないのでtempfileを使用
 
-    if len(mstEventMissionLimited_list) != 0:
+    if len(RM_list) != 0:
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
         pattern = pattern1 + " " + pattern2
 
-        mstEventMissionCondition = load_file(mstEventMissionCondition_file, cid)
-        mCondition = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition[::-1]}
-        mCondition_final = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition}
+        EMC = load_file(mstEventMissionCondition_file,
+                        cid)
+        mCondition = {m["missionId"]: m["conditionMessage"] for m in EMC[::-1]}
+        mCondition_final = {m["missionId"]: m["conditionMessage"] for m in EMC}
 
         # No. 順出力
-        mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['dispNo'])
+        RM_list = sorted(RM_list, key=lambda x: x['dispNo'])
         s = '〔イベントミッションリスト (No. 順)〕\n'
-        s += '開始: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n'
-        s += '終了: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '\n'
+        s += '開始: ' + str(datetime.fromtimestamp(RM_list[0]["startedAt"]))
         s += '\n'
-#        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
-        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + mCondition_final[n["id"]].split("\n")[0] for n in mstEventMissionLimited_list])
+        s += '終了: ' + str(datetime.fromtimestamp(RM_list[0]["endedAt"]))
+        s += '\n\n'
+        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' '
+                        + mCondition_final[n["id"]].split("\n")[0]
+                        for n in RM_list])
         # 開放順出力
         s += '\n'
         s += '\n'
@@ -847,17 +847,17 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
 
         # "conditionMessage" で振り分け
         new_list = []
-        for em in mstEventMissionLimited_list:
+        for em in RM_list:
             cond = mCondition[em["id"]]
             m1 = re.search(pattern, cond)
             if m1:
                 str_o = r"\g<month>/\g<day> \g<hour>:\g<min>"
                 opendaytime = re.sub(pattern, str_o, m1.group())
-                openedAt = int(
-                                  datetime.strptime(
-                                              str(datetime.fromtimestamp(em["startedAt"]).year) + '/' + opendaytime,
-                                              "%Y/%m/%d %H:%M").timestamp()
-                                  )
+                # 年は指定されてないので開始時刻から取得
+                year = str(datetime.fromtimestamp(em["startedAt"]).year)
+                dt_date = datetime.strptime(year + '/' + opendaytime,
+                                            "%Y/%m/%d %H:%M")
+                openedAt = int(dt_date.timestamp())
                 em["openedAt"] = openedAt
                 em["has_data"] = True
             else:
@@ -870,9 +870,11 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
             if prev_time != l['openedAt']:
                 if i != 0:
                     s += '\n'
-                s += "開放日: " + str(datetime.fromtimestamp(l['openedAt'])) + '\n'
+                s += "開放日: " + str(datetime.fromtimestamp(l['openedAt']))
+                s += '\n'
                 prev_time = l['openedAt']
-            s += '- No.' + str(l["dispNo"]) + ' ' + mCondition_final[l["id"]] + '\n'
+            s += '- No.' + str(l["dispNo"]) + ' '
+            s += mCondition_final[l["id"]] + '\n'
             # "conditionMessage": "???\n※「1/21 18:00」以降、特定条件達成で開放",
 
         tmpdir = tempfile.TemporaryDirectory()
@@ -889,6 +891,7 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
         tmpdir.cleanup()
         postCount += 1
 
+
 def check_missions(updatefiles, cid="HEAD"):
     """
     ミッションをチェックする
@@ -898,7 +901,8 @@ def check_missions(updatefiles, cid="HEAD"):
     # 集合演算で新idだけ抽出
     mstEventMission = load_file(mstEventMission_file, cid)
     event = set([s["id"] for s in mstEventMission])
-    mstEventMission_prev = json.loads(repo.git.show(cid + "^:" + mstEventMission_file))
+    mstEventMission_prev = json.loads(repo.git.show(cid + "^:"
+                                      + mstEventMission_file))
     event_prev = set([s["id"] for s in mstEventMission_prev])
     eventMissiontIds = list(event - event_prev)
     logger.debug(eventMissiontIds)
@@ -906,19 +910,23 @@ def check_missions(updatefiles, cid="HEAD"):
     mstRadderMission_list = [m for m in mstEventMission
                              if m["type"] == 1
                              and m["id"] in eventMissiontIds]
-    mstRadderMission_list = sorted(mstRadderMission_list, key=lambda x: x["startedAt"])
+    mstRadderMission_list = sorted(mstRadderMission_list,
+                                   key=lambda x: x["startedAt"])
     mstEventMission_list = [m for m in mstEventMission
                             if m["type"] == 2
                             and m["id"] in eventMissiontIds]
-    mstEventMission_list = sorted(mstEventMission_list, key=lambda x: x['closedAt'])
+    mstEventMission_list = sorted(mstEventMission_list,
+                                  key=lambda x: x['closedAt'])
     mstEventMissionDaily_list = [m for m in mstEventMission
                                  if m["type"] == 3
                                  and m["id"] in eventMissiontIds]
-    mstEventMissionDaily_list = sorted(mstEventMissionDaily_list, key=lambda x: x['closedAt'])
+    mstEventMissionDaily_list = sorted(mstEventMissionDaily_list,
+                                       key=lambda x: x['closedAt'])
     mstEventMissionLimited_list = [m for m in mstEventMission
                                    if m["type"] == 6
                                    and m["id"] in eventMissiontIds]
-    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['closedAt'])
+    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list,
+                                         key=lambda x: x['closedAt'])
 
     check_raddermissions(mstRadderMission_list, cid)
     check_eventmissions(mstEventMissionLimited_list)
@@ -943,7 +951,8 @@ def output_shop(shop_list, shopname):
         # price = str(item["prices"][0])
         # limitNum = str(item["limitNum"]) if item["limitNum"] != 0 else "∞"
         if i == 0:
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             # items.append(item["name"] + " @" + price + " x" + limitNum)
             items.append(item)
             prev_openedAt = openedAt
@@ -954,14 +963,16 @@ def output_shop(shop_list, shopname):
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             items = []
             # items.append(item["name"] + " @" + price + " x" + limitNum)
             items.append(item)
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
-        items = sorted(sorted(items, key=lambda x: x["id"]), key=lambda x: x["itemIds"][0], reverse=True)
+        items = sorted(sorted(items, key=lambda x: x["id"]),
+                       key=lambda x: x["itemIds"][0], reverse=True)
         date_item = {"date": itemdate, "items": items}
         date_items.append(date_item)
     # ソート
@@ -980,17 +991,26 @@ def output_shop(shop_list, shopname):
                     f = {"name": "アイテム"}
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
-                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
                 prev_itemId = itemId
             elif prev_itemId == itemId:
-                f["value"] += "\n- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] += "\n- " + item["name"] \
+                              + " @" + str(item["prices"][0])\
+                              + " x" + (str(item["limitNum"])
+                                        if item["limitNum"] != 0 else "∞")
             else:
                 field.append(f)
                 if itemId in [0, 18]:
                     f = {"name": "アイテム"}
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
-                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
                 prev_itemId = itemId
         if len(f) > 0:
             field.append(f)
@@ -998,24 +1018,27 @@ def output_shop(shop_list, shopname):
     logger.debug(fields)
 
     if len(fields) != 0:
+        aa_asset_url = "https://assets.atlasacademy.io"
         if shopname == "マナプリズム交換":
+            thumb_url = aa_asset_url + "/GameData/JP/Items/7.png"
             discord.post(username="FGO アップデート",
                          avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
-                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                                "url": thumb_url
                                                 },
                                   "fields": fields,
                                   "color": 5620992}])
             postCount += 1
         elif shopname == "レアプリズム交換":
+            thumb_url = aa_asset_url + "/GameData/JP/Items/18.png"
             discord.post(username="FGO アップデート",
                          avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
-                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/18.png"
+                                                "url": thumb_url
                                                 },
                                   "fields": fields,
                                   "color": 5620992}])
@@ -1086,26 +1109,34 @@ def check_svtfilter(updatefiles, cid="HEAD"):
     # 集合演算で新idだけ抽出
     mstSvtFilter = load_file(mstSvtFilter_file, cid)
     SvtFilter = set([s["id"] for s in mstSvtFilter])
-    mstSvtFilter_prev = json.loads(repo.git.show(cid + "^:" + mstSvtFilter_file))
+    mstSvtFilter_prev = json.loads(repo.git.show(cid + "^:"
+                                   + mstSvtFilter_file))
     SvtFilter_prev = set([s["id"] for s in mstSvtFilter_prev])
     SvtFilterIds = list(SvtFilter - SvtFilter_prev)
     logger.debug(SvtFilterIds)
 
-    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["collectionNo"] not in mstSvt and q["collectionNo"] != 0]
+    mstSvt_list = [q for q in mstSvt
+                   if (q["type"] == 1 or q["type"] == 2)
+                   and q["collectionNo"] not in mstSvt
+                   and q["collectionNo"] != 0]
     mstSvtFilter_list = [m for m in mstSvtFilter
                          if m["id"] in SvtFilterIds]
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
-    mstSvtF_dic = {m["id"]: {"name": m["name"], "cost": m["cost"], "classId": m["classId"]} for m in mstSvt_list}
+    mstSvtF_dic = {m["id"]: {"name": m["name"],
+                             "cost": m["cost"],
+                             "classId": m["classId"]} for m in mstSvt_list}
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
     for svtFilter in mstSvtFilter_list:
         svts = {}
         for svtId in svtFilter["svtIds"]:
             if mstSvtF_dic[svtId]["classId"] not in svts.keys():
-                svts[mstSvtF_dic[svtId]["classId"]] = [{"name": mstSvtF_dic[svtId]["name"],
-                                                       "cost": mstSvtF_dic[svtId]["cost"]}]
+                svts[mstSvtF_dic[svtId]["classId"]
+                     ] = [{"name": mstSvtF_dic[svtId]["name"],
+                           "cost": mstSvtF_dic[svtId]["cost"]}]
             else:
-                svts[mstSvtF_dic[svtId]["classId"]].append({"name": mstSvtF_dic[svtId]["name"],
-                                                            "cost": mstSvtF_dic[svtId]["cost"]})
+                svts[mstSvtF_dic[svtId]["classId"]
+                     ].append({"name": mstSvtF_dic[svtId]["name"],
+                               "cost": mstSvtF_dic[svtId]["cost"]})
         svts = sorted(svts.items())
         logger.debug(svts)
         # filelds を作成
@@ -1113,7 +1144,9 @@ def check_svtfilter(updatefiles, cid="HEAD"):
         for svt in svts:
             out = sorted(svt[1], key=lambda x: x['cost'], reverse=True)
             fields.append({"name": id2class[svt[0]],
-                           "value": '\n'.join(['- ' + cost2rarity[m["cost"]] + " " + m["name"] for m in out])})
+                           "value": '\n'.join(['- ' + cost2rarity[m["cost"]]
+                                               + " " + m["name"]
+                                               for m in out])})
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
@@ -1188,13 +1221,20 @@ def check_mstEquip(updatefiles, cid="HEAD"):
                      if m["id"] in equipIds]
     logger.debug("mstEquip_list: %s", mstEquip_list)
     for equip in mstEquip_list:
-        skill1_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 1][0]
-        skill2_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 2][0]
-        skill3_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 3][0]
-        skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
-        skill2_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill2_id and s["lv"] == 1][0]
-        skill3_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill3_id and s["lv"] == 1][0]
-        mc_exp = [0] + [e["exp"] for e in mstEquipExp if e["equipId"] == equip["id"]][:-1]
+        skill1_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 1][0]
+        skill2_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 2][0]
+        skill3_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 3][0]
+        skill1_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill1_id and s["lv"] == 1][0]
+        skill2_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill2_id and s["lv"] == 1][0]
+        skill3_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill3_id and s["lv"] == 1][0]
+        mc_exp = [0] + [e["exp"] for e in mstEquipExp
+                        if e["equipId"] == equip["id"]][:-1]
         logger.debug("mc_exp: %s", mc_exp)
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
@@ -1269,17 +1309,18 @@ def post(func, updatefiles, cid="HEAD"):
     except Exception as e:
         logger.exception(e)
         discord_error.post(username="FGO アップデート",
-                            avatar_url=avatar_url,
-                            embeds=[{
-                            "title": func.__name__ + "Error",
-                            "description": e,
-                            "color": 15158332}])
+                           avatar_url=avatar_url,
+                           embeds=[{
+                                    "title": func.__name__ + "Error",
+                                    "description": e,
+                                    "color": 15158332}])
 
 
 @lock_or_through
 def main(args):
     if args.cid != "HEAD" or check_update():
-        updatefiles = repo.git.diff(args.cid + '^..' + args.cid, name_only=True).split('\n')
+        updatefiles = repo.git.diff(args.cid + '^..'
+                                    + args.cid, name_only=True).split('\n')
         if mstSvtFilter_file in updatefiles or mstSvt_file in updatefiles:
             global mstSvt
             global id2class
@@ -1303,12 +1344,14 @@ def main(args):
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
         if postCount > 10:
+            description = "bot が自動公開するのは10件のみです\n" \
+                          + str(postCount - 10) + "件は手動で公開してください"
             discord_error.post(username="FGO アップデート",
-                                avatar_url=avatar_url,
-                                embeds=[{
-                                "title": str(postCount) + "件投稿",
-                                "description": "bot が自動公開するのは10件のみです\n" + str(postCount - 10) + "件は手動で公開してください",
-                                "color": 15158332}])
+                               avatar_url=avatar_url,
+                               embeds=[{
+                                        "title": str(postCount) + "件投稿",
+                                        "description": description,
+                                        "color": 15158332}])
 
 
 if __name__ == '__main__':
@@ -1325,7 +1368,8 @@ if __name__ == '__main__':
     args = parser.parse_args()    # 引数を解析
     logging.basicConfig(
         level=logging.INFO,
-        format='%(name)s <%(filename)s-L%(lineno)s> [%(levelname)s] %(message)s',
+        format='%(name)s <%(filename)s-L%(lineno)s>'
+               + ' [%(levelname)s] %(message)s',
     )
     logger.setLevel(args.loglevel.upper())
 
