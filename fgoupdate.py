@@ -40,7 +40,6 @@ fgodata_dir = fgodata.split("/")[-1]
 fgodata_local_repo = basedir.parent / fgodata_dir
 repo = git.Repo(fgodata_local_repo)
 origin = repo.remotes.origin
-avatar_url = "https://raw.githubusercontent.com/fgosc/fgo_update/main/info.png"
 
 sha_json = "github_sha.json"
 data_json = "fgoupdate.json"
@@ -52,6 +51,8 @@ mstEventMission_file = "JP_tables/event/mstEventMission.json"
 mstEventMissionCondition_file = "JP_tables/event/mstEventMissionCondition.json"
 mstEvent_file = "JP_tables/event/mstEvent.json"
 mstShop_file = "JP_tables/shop/mstShop.json"
+mstEventReward_file = "JP_tables/event/mstEventReward.json"
+mstGift_file = "JP_tables/gift/mstGift.json"
 mstSvt_file = "JP_tables/svt/mstSvt.json"
 mstSvtLimit_file = "JP_tables/svt/mstSvtLimit.json"
 mstSvtFilter_file = "JP_tables/svt/mstSvtFilter.json"
@@ -191,7 +192,6 @@ def check_datavar(updatefiles, cid="HEAD"):
     date_str = str(datetime.fromtimestamp(mstver["dateVer"]))
     if len(fieleds) > 0:
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{"title": "データ更新",
                               "description": "Version: " + appVer
                                              + " DataVer: "
@@ -202,7 +202,6 @@ def check_datavar(updatefiles, cid="HEAD"):
                               "color": 5620992}])
     else:
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{"title": "データ更新",
                               "description": "Version: " + appVer
                                              + " DataVer: "
@@ -261,7 +260,6 @@ def output_gacha(gacha_list):
                 + gacha_list[0]["detailUrl"] + ".png"
     thumb_url = aa_url + "/GameData/JP/Items/6.png"
     discord.post(username="FGO アップデート",
-                 avatar_url=avatar_url,
                  embeds=[{
                           "title": "ガチャ更新",
                           "description": description,
@@ -469,7 +467,7 @@ def check_svt(updatefiles, cid="HEAD"):
                             mstSvtTreasureDevice, spoiler=spoiler)
             desp += "**コマンドカード:**\n"
             desp += "||" + cards + "||"
-            if svt["cost"] < 7:
+            if 0 < svt["cost"] < 7:
                 color = "1"
             elif svt["cost"] == 7:
                 color = "2"
@@ -478,11 +476,10 @@ def check_svt(updatefiles, cid="HEAD"):
             icon_url = aa_url + "/GameData/JP/ClassIcons/class"
             thumb_url = icon_url + color + "_" + str(svt["classId"]) + ".png"
             if svt["collectionNo"] == 0:
-                caution = "(ノンプレイヤブル)"
+                caution = "(詳細不明)"
             else:
                 caution = ""
             discord.post(username="FGO アップデート",
-                         avatar_url=avatar_url,
                          embeds=[{
                                   "title": "サーヴァント新規追加" + caution,
                                   "thumbnail": {
@@ -525,7 +522,11 @@ def check_strengthen(updatefiles, cid="HEAD"):
             svtId = [s["svtId"] for s in mstSvtNp
                      if s["treasureDeviceId"] == npId][0]
             logger.debug(svtId)
-            svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+            try:
+                svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+            except Exception as e:
+                logger.exception(e)
+                continue
             logger.debug(svt)
             np_desc += ":crown:No." + str(svt["collectionNo"])
             np_desc += ' ' + cost2rarity[svt["cost"]] + ' '
@@ -598,7 +599,6 @@ def check_strengthen(updatefiles, cid="HEAD"):
 
     if len(np_desc + skill_desc) != 0:
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                               "title": "サーヴァント強化",
                               "description": np_desc + skill_desc,
@@ -653,7 +653,6 @@ def output_quest(q_list, title):
 
     if len(fields) != 0:
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": title + "更新",
                                 "fields": fields,
@@ -736,7 +735,6 @@ def check_mastermissions(EM_list):
         date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
         vdata = '\n'.join(['- ' + n["detail"] for n in EM_list])
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{"title": "マスターミッション(ウィークリー)更新",
                               "thumbnail": {
                                             "url": thumb_url
@@ -765,7 +763,6 @@ def check_eventmissions(EML_list):
         date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
         vdata = '\n'.join(['- ' + n["detail"] for n in EML_list])
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "限定ミッション更新",
                                 "fields": [
@@ -793,7 +790,6 @@ def check_dailymissions(EMD_list):
         date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
         vdata = '\n'.join(['- ' + n["detail"] for n in EMD_list])
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "ミッション(デイリー)更新",
                                 "thumbnail": {
@@ -883,7 +879,6 @@ def check_raddermissions(RM_list, cid):
         with open(savefile, mode='w', encoding="UTF-8") as f:
             f.write(s)
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      file={
                            "file1": open(savefile, "rb"),
                            },
@@ -1022,7 +1017,6 @@ def output_shop(shop_list, shopname):
         if shopname == "マナプリズム交換":
             thumb_url = aa_asset_url + "/GameData/JP/Items/7.png"
             discord.post(username="FGO アップデート",
-                         avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
@@ -1034,7 +1028,6 @@ def output_shop(shop_list, shopname):
         elif shopname == "レアプリズム交換":
             thumb_url = aa_asset_url + "/GameData/JP/Items/18.png"
             discord.post(username="FGO アップデート",
-                         avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
@@ -1045,7 +1038,6 @@ def output_shop(shop_list, shopname):
             postCount += 1
         else:
             discord.post(username="FGO アップデート",
-                         avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "fields": fields,
@@ -1148,7 +1140,6 @@ def check_svtfilter(updatefiles, cid="HEAD"):
                                                + " " + m["name"]
                                                for m in out])})
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": svtFilter["name"] + "フィルター更新",
                                 "fields": fields,
@@ -1190,7 +1181,6 @@ def plot_equiipExp(name, mc_exp):
     savefile = os.path.join(tmpdir.name, 'mcfig.png')
     plt.savefig(savefile)
     discord.post(username="FGO アップデート",
-                 avatar_url=avatar_url,
                  file={
                        "file1": open(savefile, "rb"),
                        },
@@ -1237,7 +1227,6 @@ def check_mstEquip(updatefiles, cid="HEAD"):
                         if e["equipId"] == equip["id"]][:-1]
         logger.debug("mc_exp: %s", mc_exp)
         discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
                      embeds=[{
                                 "title": "マスター装備更新",
                                 "description": "[" + equip["name"] + "](" + "https://apps.atlasacademy.io/db/#/JP/mystic-code/" + str(equip["id"]) + ")",
@@ -1273,6 +1262,44 @@ def check_mstEquip(updatefiles, cid="HEAD"):
         plot_equiipExp(equip["name"], mc_exp)
 
 
+def check_eventReward(updatefiles, cid="HEAD"):
+    """
+    ポイント報酬を出力する
+    """
+    if mstEventReward_file not in updatefiles:
+        return
+    global postCount
+    # 集合演算で新idだけ抽出
+    mER = load_file(mstEventReward_file, cid)
+    mER_prev = json.loads(repo.git.show(cid + "^:" + mstEventReward_file))
+    mstGift = load_file(mstGift_file, cid)
+    giftId2reward = {g["id"]: {"itemId": g["objectId"], "num": g["num"]}
+                     for g in mstGift}
+    # 新規追加のイベントIDを検出する
+    ER = set([s["eventId"] for s in mER])
+    logger.debug(ER)
+    ER_prev = set([s["eventId"] for s in mER_prev])
+    logger.debug(ER_prev)
+    evIds = list(ER - ER_prev)
+    logger.debug(evIds)
+    for evId in evIds:
+        description = ""
+        pointReward = [(i["point"], i["giftId"]) for i in mER
+                       if i["eventId"] == evId]
+        for p in pointReward:
+            description += "{:,}".format(p[0]) + "\t"
+            rew = giftId2reward[p[1]]
+            description += id2itemName[rew["itemId"]] + "\t"
+            description += "x{:,}".format(rew["num"]) + "\n"
+
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                              "title": "ポイント報酬更新",
+                              "description": description,
+                              "color": 5620992}])
+        postCount += 1
+
+
 def lock_or_through(func):
     '''
     ロックファイルによる排他制御デコレータ
@@ -1285,7 +1312,6 @@ def lock_or_through(func):
         except LockError:
             logger.error("locked")
             discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
                                embeds=[{
                                 "title": "Error",
                                 "description": "Proccess locked",
@@ -1309,7 +1335,6 @@ def post(func, updatefiles, cid="HEAD"):
     except Exception as e:
         logger.exception(e)
         discord_error.post(username="FGO アップデート",
-                           avatar_url=avatar_url,
                            embeds=[{
                                     "title": func.__name__ + "Error",
                                     "description": e,
@@ -1339,15 +1364,14 @@ def main(args):
             mstFunc = load_file(mstFunc_file, args.cid)
 
         funcs = [check_gacha, check_svt, check_strengthen, check_quests,
-                 check_missions, check_shop, check_svtfilter, check_mstEquip,
-                 check_datavar]
+                 check_missions, check_shop, check_eventReward,
+                 check_svtfilter, check_mstEquip, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
         if postCount > 10:
             description = "bot が自動公開するのは10件のみです\n" \
                           + str(postCount - 10) + "件は手動で公開してください"
             discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
                                embeds=[{
                                         "title": str(postCount) + "件投稿",
                                         "description": description,
