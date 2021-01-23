@@ -69,6 +69,7 @@ mstTreasureDevice_file = "JP_tables/treasure/mstTreasureDevice.json"
 mstSvtTreasureDevice_file = "JP_tables/svt/mstSvtTreasureDevice.json"
 mstTreasureDeviceDetail_file = "JP_tables/treasure/mstTreasureDeviceDetail.json"
 mstItem_file = "JP_tables/item/mstItem.json"
+aa_url = "https://assets.atlasacademy.io"
 mstSvt = []
 id2class = {}
 mstSkill = []
@@ -82,10 +83,13 @@ id2card_long = {1: "Arts", 2: "Buster", 3: "Quick"}
 class_dic = {
              1: "剣", 2: "弓", 3: "槍", 4: "騎", 5: "術", 6: "殺", 7: "狂",
              8: "盾", 9: "裁", 10: "分", 11: "讐", 12: "?", 17: "?", 20: "?",
-             22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?", 97: "?", 1001: "?"
+             22: "?", 23: "月", 24: "?", 25: "降", 26: "?", 27: "?", 97: "?",
+             1001: "?"
             }
 
-cost2rarity = {16: "★5", 12: "★4", 7: "★3", 4: "★2", 3: "★1", 0: "★4", 9: "9?", 1: "1?", 5: "5?"}
+cost2rarity = {16: "★5", 12: "★4", 7: "★3", 4: "★2",
+               3: "★1", 0: "★4", 9: "9?", 1: "1?", 5: "5?"}
+postCount = 0
 
 
 def list2class(enemy):
@@ -132,16 +136,81 @@ def check_datavar(updatefiles, cid="HEAD"):
     """
     アプリバージョンとデータバージョンをチェックする
     """
+    global postCount
     if mstver_file not in updatefiles:
         return
 
     mstver = load_file(mstver_file, cid)
     logger.debug("dateVar: %s", mstver["dateVer"])
-    discord.post(username="FGO アップデート",
-                 avatar_url=avatar_url,
-                 embeds=[{"title": "データ更新",
-                          "description": "Version: " + str(mstver["appVer"]) + " DataVer: " + str(mstver["dataVer"]),
-                          "color": 5620992}])
+
+    """
+    イベント・キャンペーンをチェックする
+    終了日時はそれぞれ異なるので煩雑になるため表記しないこととする
+    """
+    fieleds = []
+    if mstEvent_file in updatefiles:
+        # 集合演算で新idだけ抽出
+        mstEvent = load_file(mstEvent_file, cid)
+        event = set([s["id"] for s in mstEvent])
+        mstEvent_prev = json.loads(repo.git.show(cid + "^:" + mstEvent_file))
+        event_prev = set([s["id"] for s in mstEvent_prev])
+        eventIds = list(event - event_prev)
+        logger.debug(eventIds)
+
+        mstEvent_list = [m for m in mstEvent
+                         if m["id"] in eventIds]
+        # イベントを先に出すようにするためのソート
+        mstEvent_list = sorted(mstEvent_list,
+                               key=lambda x: x["type"], reverse=True)
+
+        for event in mstEvent_list:
+            logger.debug(event["type"])
+            if event["type"] == 12:
+                title = "イベント・クエスト"
+            else:
+                title = "キャンペーン"
+            fieled1 = {
+                    "name": ":date: 日時",
+                    "value": '```開始 | '
+                             + str(datetime.fromtimestamp(event["startedAt"]))
+                             + '\n終了 | '
+                             + str(datetime.fromtimestamp(event["endedAt"]))
+                             + '```'
+                    }
+            fieleds.append(fieled1)
+            fieled2 = {
+                    "name": title,
+                    "value": event["detail"]
+                    }
+            fieleds.append(fieled2)
+
+    if "appVer" in mstver.keys():
+        appVer = str(mstver["appVer"])
+    else:
+        appVer = ""
+    date_str = str(datetime.fromtimestamp(mstver["dateVer"]))
+    if len(fieleds) > 0:
+        discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
+                     embeds=[{"title": "データ更新",
+                              "description": "Version: " + appVer
+                                             + " DataVer: "
+                                             + str(mstver["dataVer"])
+                                             + " "
+                                             + date_str,
+                              "fields": fieleds,
+                              "color": 5620992}])
+    else:
+        discord.post(username="FGO アップデート",
+                     avatar_url=avatar_url,
+                     embeds=[{"title": "データ更新",
+                              "description": "Version: " + appVer
+                                             + " DataVer: "
+                                             + str(mstver["dataVer"])
+                                             + " "
+                                             + date_str,
+                              "color": 5620992}])
+    postCount += 1
 
 
 def output_gacha(gacha_list):
@@ -149,6 +218,7 @@ def output_gacha(gacha_list):
     ガチャデータを出力する
     """
     # fields の内容を事前作成
+    global postCount
     date_items = []
     prev_openedAt = 0
     prev_closedAt = 0
@@ -158,60 +228,49 @@ def output_gacha(gacha_list):
         openedAt = datetime.fromtimestamp(item["openedAt"])
         closedAt = datetime.fromtimestamp(item["closedAt"])
         if i == 0:
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
-            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
+            items.append("[" + item["name"]
+                         + "](https://view.fate-go.jp/webview/summon"
+                         + item["detailUrl"] + "_header.html)")
             prev_openedAt = openedAt
             prev_closedAt = closedAt
         elif prev_openedAt == openedAt and prev_closedAt == closedAt:
-            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+            items.append(item["name"])
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             items = []
-            items.append("[" + item["name"] + "](https://view.fate-go.jp/webview/summon" + item["detailUrl"] + "_header.html)")
+            items.append(item["name"])
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
         date_item = {"date": itemdate, "items": items}
         date_items.append(date_item)
-    # filedを作成
-    fields = []
+    # descriptionを作成
+    description = ""
     for date_item in date_items:
         logger.debug(date_item)
-        field = [{"name": "日時",
-                 "value": date_item["date"]
-                  },
-                 {
-                  "name": "項目",
-                  "value": '\n'.join(['- ' + n for n in date_item["items"]])
-                  }]
-        fields += field
-    logger.debug("filelds: %s", fields)
-
-    if len(fields) != 0:
-        # 投稿できるfield 数に制限があるので分ける
-        discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
-                     embeds=[{
-                                "title": "ガチャ更新",
-                                "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
-                                "thumbnail": {
-                                              "url": "https://assets.atlasacademy.io/GameData/JP/Items/6.png"
-                                              },
-                                "fields": fields[:20],
-                                "color": 5620992}])
-        if len(fields) >= 20:
-            discord.post(username="FGO アップデート",
-                         avatar_url=avatar_url,
-                         embeds=[{
-                                    "title": "ガチャ更新",
-                                    "image": {"url": "https://view.fate-go.jp/webview/common/images" + gacha_list[0]["detailUrl"] + ".png"},
-                                    "thumbnail": {
-                                                  "url": "https://assets.atlasacademy.io/GameData/JP/Items/6.png"
-                                                  },
-                                    "fields": fields[20:],
-                                    "color": 5620992}])
+        description += ":date: **日時**"
+        description += date_item["date"]
+        description += '\n'.join(['- ' + n for n in date_item["items"]])
+        description += "\n"
+    image_url = "https://view.fate-go.jp/webview/common/images" \
+                + gacha_list[0]["detailUrl"] + ".png"
+    thumb_url = aa_url + "/GameData/JP/Items/6.png"
+    discord.post(username="FGO アップデート",
+                 avatar_url=avatar_url,
+                 embeds=[{
+                          "title": "ガチャ更新",
+                          "description": description,
+                          "image": {"url": image_url},
+                          "thumbnail": {
+                                        "url": thumb_url
+                                        },
+                          "color": 5620992}])
+    postCount += 1
 
 
 def check_gacha(updatefiles, cid="HEAD"):
@@ -238,13 +297,23 @@ def make_svtStatus(svt, mstSvtLimit, spoiler=False):
     """
     サーヴァントのステータスを作成
     """
-    hp = [s["hpMax"] for s in mstSvtLimit if s["svtId"] == svt["id"] and s["limitCount"] == 4][0]
-    atk = [s["atkMax"] for s in mstSvtLimit if s["svtId"] == svt["id"] and s["limitCount"] == 4][0]
+    hp = [s["hpMax"] for s in mstSvtLimit
+          if s["svtId"] == svt["id"]
+          and s["limitCount"] == 4][0]
+    atk = [s["atkMax"] for s in mstSvtLimit
+           if s["svtId"] == svt["id"]
+           and s["limitCount"] == 4][0]
     desp = "**ステータス**\n"
     if spoiler:
-        desp += "HP " + '||{:,}||'.format(hp) + ", ATK " + '||{:,}||'.format(atk) + ", COST " + str(svt["cost"]) + "\n"
+        desp += "HP " + '||{:,}||'.format(hp) \
+                + ", ATK " + '||{:,}||'.format(atk) \
+                + ", COST " + str(svt["cost"]) \
+                + "\n"
     else:
-        desp += "HP " + '{:,}'.format(hp) + ", ATK " + '{:,}'.format(atk) + ", COST " + str(svt["cost"]) + "\n"
+        desp += "HP " + '{:,}'.format(hp) \
+                + ", ATK " + '{:,}'.format(atk) \
+                + ", COST " + str(svt["cost"]) \
+                + "\n"
     desp += "\n"
     return desp
 
@@ -256,28 +325,37 @@ def make_svtSkills(svt, mstSvtSkill):
     desp = "**保有スキル:**\n"
     try:
         # 敵データなどで存在するときにコケるので try except
-        skill1_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 1][0]
-        skill2_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 2][0]
-        skill3_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 3][0]
-        skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
-        skill2_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill2_id and s["lv"] == 1][0]
-        skill3_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill3_id and s["lv"] == 1][0]
+        skill1_id = [s["skillId"] for s in mstSvtSkill
+                     if s["svtId"] == svt["id"] and s["num"] == 1][0]
+        skill2_id = [s["skillId"] for s in mstSvtSkill
+                     if s["svtId"] == svt["id"] and s["num"] == 2][0]
+        skill3_id = [s["skillId"] for s in mstSvtSkill
+                     if s["svtId"] == svt["id"] and s["num"] == 3][0]
+        skill1_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill1_id and s["lv"] == 1][0]
+        skill2_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill2_id and s["lv"] == 1][0]
+        skill3_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill3_id and s["lv"] == 1][0]
 
         # 保有スキルを出力
         desp += "__スキル1__ チャージタイム||" + str(skill1_ct) + "\n"
         desp += [k["name"] for k in mstSkill
                  if k["id"] == skill1_id][0] + "\n"
-        desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+        desp += [i["detail"] for i in mstSkillDetail
+                 if i["id"] == skill1_id][0].replace("[{0}]", r"\[Lv\]") + "||"
         desp += "\n\n"
         desp += "__スキル2__ チャージタイム||" + str(skill2_ct) + "\n"
         desp += [k["name"] for k in mstSkill
                  if k["id"] == skill2_id][0] + "\n"
-        desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill2_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+        desp += [i["detail"] for i in mstSkillDetail
+                 if i["id"] == skill2_id][0].replace("[{0}]", r"\[Lv\]") + "||"
         desp += "\n\n"
         desp += "__スキル3__ チャージタイム||" + str(skill3_ct) + "\n"
         desp += [k["name"] for k in mstSkill
                  if k["id"] == skill3_id][0] + "\n"
-        desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill3_id][0].replace("[{0}]", r"\[Lv\]") + "||"
+        desp += [i["detail"] for i in mstSkillDetail
+                 if i["id"] == skill3_id][0].replace("[{0}]", r"\[Lv\]") + "||"
     except Exception as e:
         logger.exception(e)
 
@@ -294,7 +372,8 @@ def make_svtClassSkill(svt):
     desp += "||"
     for skillId in svt["classPassive"]:
         desp += [s["name"] for s in mstSkill if s["id"] == skillId][0] + '\n'
-        desp += [i["detail"] for i in mstSkillDetail if i["id"] == skillId][0].replace("{0}", "Lv")
+        desp += [i["detail"] for i in mstSkillDetail
+                 if i["id"] == skillId][0].replace("{0}", "Lv")
         desp += "\n\n"
     desp += "||"
 
@@ -303,7 +382,8 @@ def make_svtClassSkill(svt):
     return desp
 
 
-def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, mstSvtTreasureDevice, spoiler=False):
+def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail,
+            mstSvtTreasureDevice, spoiler=False):
     """
     サーヴァントの宝具を作成
     """
@@ -312,13 +392,20 @@ def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, mstSvtTreasureDevic
         desp += "||"
     np = [np for np in mstTreasureDevice if np["seqId"] == svt["id"]][0]
     desp += np["name"]
-    desp += "(" + np["ruby"] + ")" + " " + id2card_long[[np["cardId"] for np in mstSvtTreasureDevice if np["svtId"] == svt["id"]][0]] + "\n"
+    desp += "(" + np["ruby"] + ")" + " " \
+            + id2card_long[[np["cardId"] for np in mstSvtTreasureDevice
+                            if np["svtId"] == svt["id"]][0]] + "\n"
     desp += "__ランク__ " + np["rank"] + "\n"
     desp += "__種別__ " + np["typeText"] + "\n"
     if spoiler:
-        desp += [n["detail"] for n in mstTreasureDeviceDetail if n["id"] == np["id"]][0].replace("[{0}]", "[Lv]") + "||" + "\n"
+        desp += [n["detail"] for n in mstTreasureDeviceDetail
+                 if n["id"] == np["id"]][0].replace("[{0}]",
+                                                    "[Lv]") + "||" + "\n"
     else:
-        desp += "```" + [n["detail"] for n in mstTreasureDeviceDetail if n["id"] == np["id"]][0].replace("[{0}]", "[Lv]") + "```" + "\n"
+        desp += "```" \
+                + [n["detail"] for n in mstTreasureDeviceDetail
+                   if n["id"] == np["id"]][0].replace("[{0}]", "[Lv]") \
+                + "```" + "\n"
     desp += "\n"
     return desp
 
@@ -327,6 +414,7 @@ def check_svt(updatefiles, cid="HEAD"):
     """
     サーヴァントをチェックする
     """
+    global postCount
     if mstSvt_file not in updatefiles:
         return
     mstSvtLimit = load_file(mstSvtLimit_file, cid)
@@ -338,24 +426,33 @@ def check_svt(updatefiles, cid="HEAD"):
     mstSvt = load_file(mstSvt_file, cid)
     svt = set([s["id"] for s in mstSvt if (s["type"] == 1 or s["type"] == 2)])
     mstSvt_prev = json.loads(repo.git.show(cid + "^:" + mstSvt_file))
-    svt_prev = set([s["id"] for s in mstSvt_prev if (s["type"] == 1 or s["type"] == 2)])
+    svt_prev = set([s["id"] for s in mstSvt_prev
+                    if (s["type"] == 1 or s["type"] == 2)])
     gachaIds = list(svt - svt_prev)
     logger.debug(gachaIds)
 
-    mstSvt_list1 = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] in gachaIds and q["collectionNo"] != 0]
+    mstSvt_list1 = [q for q in mstSvt
+                    if (q["type"] == 1 or q["type"] == 2)
+                    and q["id"] in gachaIds and q["collectionNo"] != 0]
     mstSvt_list1 = sorted(mstSvt_list1, key=lambda x: x['collectionNo'])
-    mstSvt_list2 = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] in gachaIds and q["collectionNo"] == 0]
+    mstSvt_list2 = [q for q in mstSvt
+                    if (q["type"] == 1 or q["type"] == 2)
+                    and q["id"] in gachaIds and q["collectionNo"] == 0]
     mstSvt_list = mstSvt_list1 + mstSvt_list2
     logger.debug("mstSvt_list: %s", mstSvt_list)
     for svt in mstSvt_list:
         try:
             # スキル無しで事前実装されることがあるので
             if svt["collectionNo"] == 0:
-                desp = cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ||' + svt["name"] + "||(※おそらくストーリーのネタバレを含みます)"
+                desp = cost2rarity[svt["cost"]] + ' ' \
+                       + id2class[svt["classId"]] \
+                       + ' ||' + svt["name"] + "||(※おそらくストーリーのネタバレを含みます)"
             else:
                 desp = "[" + "- No." + str(svt["collectionNo"])
-                desp += ' ' + cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ' + svt["name"] + "]"
-                desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + ")\n"
+                desp += ' ' + cost2rarity[svt["cost"]] + ' ' \
+                        + id2class[svt["classId"]] + ' ' + svt["name"] + "]"
+                desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" \
+                        + str(svt["collectionNo"]) + ")\n"
             cards = ""
             for cardId in svt["cardIds"]:
                 cards += id2card[cardId]
@@ -368,7 +465,8 @@ def check_svt(updatefiles, cid="HEAD"):
             desp += make_svtStatus(svt, mstSvtLimit, spoiler=spoiler)
             desp += make_svtSkills(svt, mstSvtSkill)
             desp += make_svtClassSkill(svt)
-            desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail, mstSvtTreasureDevice, spoiler=spoiler)
+            desp += make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail,
+                            mstSvtTreasureDevice, spoiler=spoiler)
             desp += "**コマンドカード:**\n"
             desp += "||" + cards + "||"
             if svt["cost"] < 7:
@@ -377,7 +475,7 @@ def check_svt(updatefiles, cid="HEAD"):
                 color = "2"
             else:
                 color = "3"
-            icon_url = "https://assets.atlasacademy.io/GameData/JP/ClassIcons/class"
+            icon_url = aa_url + "/GameData/JP/ClassIcons/class"
             thumb_url = icon_url + color + "_" + str(svt["classId"]) + ".png"
             if svt["collectionNo"] == 0:
                 caution = "(ノンプレイヤブル)"
@@ -392,134 +490,124 @@ def check_svt(updatefiles, cid="HEAD"):
                                                 },
                                   "description": desp,
                                   "color": 5620992}])
+            postCount += 1
         except Exception as e:
             logger.exception(e)
             continue
 
 
-# def make_svtSkill(svt, mstSvtSkill):
-#     """
-#     サーヴァントのスキルを作成(強化用)
-#     """
-#     # 指定のスキルを持っているサーヴァントを逆引き
-#     desp = "**保有スキル:**\n"
-#     try:
-#         # 敵データなどで存在するときにコケるので try except
-#         skill1_id = [s["skillId"] for s in mstSvtSkill if s["svtId"] == svt["id"] and s["num"] == 1][0]
-#         skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
-
-#         # 保有スキルを出力
-#         desp += "__スキル1__ チャージタイム||" + str(skill1_ct) + "\n"
-#         desp += [k["name"] for k in mstSkill
-#                 if k["id"] == skill1_id][0] + "\n"
-#         desp += [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("[{0}]", r"\[Lv\]") + "||"
-#         desp += "\n\n"
-#     except Exception as e:
-#         pass
-
-#     desp += "\n\n"
-
-#     return desp
-
-
-def check_np(updatefiles, cid="HEAD"):
+def check_strengthen(updatefiles, cid="HEAD"):
     """
-    宝具強化をチェックする
+    強化をチェックする
     """
-    if mstTreasureDevice_file not in updatefiles:
-        return
-    # 集合演算で新idだけ抽出
-    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
-    mstSvtNp = load_file(mstSvtTreasureDevice_file, cid)
-    svtNp = [n["treasureDeviceId"] for n in mstSvtNp if n["priority"] > 101]
+    global postCount
+    np_desc = ""
+    if mstTreasureDevice_file in updatefiles:
+        # 集合演算で新idだけ抽出
+        mstSvt_list = [q for q in mstSvt
+                       if (q["type"] == 1 or q["type"] == 2)
+                       and q["id"] and q["collectionNo"] != 0]
+        mstSvtNp = load_file(mstSvtTreasureDevice_file, cid)
+        svtNp = [n["treasureDeviceId"] for n in mstSvtNp
+                 if n["priority"] > 101]
 
-    mstNp = load_file(mstTreasureDevice_file, cid)
-    np = set([s["id"] for s in mstNp if s["id"] in svtNp])
-    mstNp_prev = json.loads(repo.git.show(cid + "^:" + mstTreasureDevice_file))
-    np_prev = set([s["id"] for s in mstNp_prev if s["id"] in svtNp])
-    npIds = list(np - np_prev)
-    logger.debug(npIds)
-    # # fields作成
-    mstNpDetail = load_file(mstTreasureDeviceDetail_file, cid)
+        mstNp = load_file(mstTreasureDevice_file, cid)
+        np = set([s["id"] for s in mstNp if s["id"] in svtNp])
+        mstNp_prev = json.loads(repo.git.show(cid + "^:"
+                                              + mstTreasureDevice_file))
+        np_prev = set([s["id"] for s in mstNp_prev if s["id"] in svtNp])
+        npIds = list(np - np_prev)
+        logger.debug(npIds)
+        # # fields作成
+        mstNpDetail = load_file(mstTreasureDeviceDetail_file, cid)
 
-    fields = []
-    for npId in npIds:
-        svtId = [s["svtId"] for s in mstSvtNp if s["treasureDeviceId"] == npId][0]
-        logger.debug(svtId)
-        svt = [s for s in mstSvt_list if s["id"] == svtId][0]
-        logger.debug(svt)
-        name = "No." + str(svt["collectionNo"])
-        name += ' ' + cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ' + svt["name"]
+        for npId in npIds:
+            svtId = [s["svtId"] for s in mstSvtNp
+                     if s["treasureDeviceId"] == npId][0]
+            logger.debug(svtId)
+            svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+            logger.debug(svt)
+            np_desc += ":crown:No." + str(svt["collectionNo"])
+            np_desc += ' ' + cost2rarity[svt["cost"]] + ' '
+            np_desc += id2class[svt["classId"]] + ' ' + svt["name"] + "\n"
 
-        logger.debug(name)
+            # 宝具を出力
+            np_desc += "[" + [n["name"] + "(" + n["ruby"] + ")" for n in mstNp
+                              if n["id"] == npId][0] + "]"
+            np_desc += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/"
+            np_desc += str(svt["collectionNo"]) + "/noble-phantasms" + ")"
+            np_desc += " " + id2card_long[[np["cardId"] for np in mstSvtNp
+                                           if np["svtId"] == svtId][0]] + "\n"
+        #     value += "チャージタイム" + str(skill_ct) + "\n"
+            np_desc += [n["detail"] for n in mstNpDetail
+                        if n["id"] == npId][0].replace("[{0}]", r"\[Lv\]").replace("[g][o]▲[/o][/g]", ":small_red_triangle:")
+            np_desc += '\n\n'
+        if len(np_desc) > 0:
+            np_desc = "**宝具強化**\n" + np_desc + "\n"
 
-        # 宝具を出力
-        value = "[" + [n["name"] + "(" + n["ruby"] + ")" for n in mstNp
-                       if n["id"] == npId][0] + "]"
-    #     skillNum = [s["skillNum"] for s in mstSvtSkill if s["skillId"] == svtSkill][0]
-        value += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + "/noble-phantasms" + ")"
-        value += " " + id2card_long[[np["cardId"] for np in mstSvtNp if np["svtId"] == svtId][0]] + "\n"
-    #     value += "チャージタイム" + str(skill_ct) + "\n"
-        value += [n["detail"] for n in mstNpDetail if n["id"] == npId][0].replace("[{0}]", r"\[Lv\]").replace("[g][o]▲[/o][/g]", ":small_red_triangle:")
-        field = {"name": name, "value": value}
-        fields.append(field)
-    if len(fields) != 0:
-        discord.post(username="FGO アップデート",
-                     avatar_url=avatar_url,
-                     embeds=[{
-                                "title": "サーヴァント宝具強化",
-                                "fields": fields,
-                                "color": 5620992}])
-
-
-def check_skill(updatefiles, cid="HEAD"):
     """
     スキル強化をチェックする
     """
-    if mstSkill_file not in updatefiles:
-        return
-    # 集合演算で新idだけ抽出
-    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
-    mstSvtId_list = [q["id"] for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["id"] and q["collectionNo"] != 0]
-    mstSvtSkill = load_file(mstSvtSkill_file, cid)
-    svtSkill = set([s["skillId"] for s in mstSvtSkill if s["svtId"] in mstSvtId_list and s["priority"] > 1])
-    mstSvtSkill_prev = json.loads(repo.git.show(cid + "^:" + mstSvtSkill_file))
-    svtSkill_prev = set([s["skillId"] for s in mstSvtSkill_prev if s["svtId"] in mstSvtId_list and s["priority"] > 1])
-    svtSkillIds = list(svtSkill - svtSkill_prev)
-    logger.debug(svtSkillIds)
-    # fields作成
-    fields = []
-    for svtSkill in svtSkillIds:
-        skill_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == svtSkill and s["lv"] == 1][0]
-        # skillId から servert id
-        svtId = [s["svtId"] for s in mstSvtSkill if s["skillId"] == svtSkill][0]
-        logger.debug(svtId)
-        svt = [s for s in mstSvt_list if s["id"] == svtId][0]
-        logger.debug(svt)
-        name = "No." + str(svt["collectionNo"])
-        name += ' ' + cost2rarity[svt["cost"]] + ' ' + id2class[svt["classId"]] + ' ' + svt["name"]
+    skill_desc = ""
+    if mstSkill_file in updatefiles:
+        # 集合演算で新idだけ抽出
+        mstSvt_list = [q for q in mstSvt
+                       if (q["type"] == 1 or q["type"] == 2)
+                       and q["id"] and q["collectionNo"] != 0]
+        mstSvtId_list = [q["id"] for q in mstSvt
+                         if (q["type"] == 1 or q["type"] == 2)
+                         and q["id"] and q["collectionNo"] != 0]
+        mstSvtSkill = load_file(mstSvtSkill_file, cid)
+        svtSkill = set([s["skillId"] for s in mstSvtSkill
+                        if s["svtId"] in mstSvtId_list and s["priority"] > 1])
+        mstSvtSkill_prev = json.loads(repo.git.show(cid + "^:"
+                                                    + mstSvtSkill_file))
+        svtSkill_prev = set([s["skillId"] for s in mstSvtSkill_prev
+                             if s["svtId"] in mstSvtId_list
+                             and s["priority"] > 1])
+        svtSkillIds = list(svtSkill - svtSkill_prev)
+        logger.debug(svtSkillIds)
+        # fields作成
+        for svtSkill in svtSkillIds:
+            skill_ct = [s["chargeTurn"] for s in mstSkillLv
+                        if s["skillId"] == svtSkill and s["lv"] == 1][0]
+            # skillId から servert id
+            svtId = [s["svtId"] for s in mstSvtSkill
+                     if s["skillId"] == svtSkill][0]
+            logger.debug(svtId)
+            svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+            logger.debug(svt)
+            skill_desc += ":mage: No." + str(svt["collectionNo"])
+            skill_desc += ' ' + cost2rarity[svt["cost"]] + ' '
+            skill_desc += id2class[svt["classId"]] + ' ' + svt["name"] + "\n"
 
-        logger.debug([s["name"] for s in mstSkill if s["id"] == svtSkill][0])
+            # 保有スキルを出力
+            skill_desc += "[" + [k["name"] for k in mstSkill
+                                 if k["id"] == svtSkill][0] + "]"
+            skillNum = [s["skillNum"] for s in mstSvtSkill
+                        if s["skillId"] == svtSkill][0]
+            skill_desc += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/"
+            skill_desc += str(svt["collectionNo"]) + "/skill-" + str(skillNum)
+            skill_desc += ") "
+            skill_desc += "チャージタイム" + str(skill_ct) + "\n"
+            skill_desc += [i["detail"] for i in mstSkillDetail
+                           if i["id"] == svtSkill][0].replace("[{0}]", r"\[Lv\]").replace("[g][o]▲[/o][/g]", ":small_red_triangle:")
+            skill_desc += '\n\n'
+        if len(skill_desc) > 0:
+            skill_desc = "**スキル強化**\n" + skill_desc
 
-        # 保有スキルを出力
-        value = "[" + [k["name"] for k in mstSkill
-                       if k["id"] == svtSkill][0] + "]"
-        skillNum = [s["skillNum"] for s in mstSvtSkill if s["skillId"] == svtSkill][0]
-        value += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" + str(svt["collectionNo"]) + "/skill-" + str(skillNum) + ") "
-        value += "チャージタイム" + str(skill_ct) + "\n"
-        value += [i["detail"] for i in mstSkillDetail if i["id"] == svtSkill][0].replace("[{0}]", r"\[Lv\]").replace("[g][o]▲[/o][/g]", ":small_red_triangle:")
-        field = {"name": name, "value": value}
-        fields.append(field)
-    if len(fields) != 0:
+    if len(np_desc + skill_desc) != 0:
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
-                                "title": "サーヴァントスキル強化",
-                                "fields": fields,
-                                "color": 5620992}])
+                              "title": "サーヴァント強化",
+                              "description": np_desc + skill_desc,
+                              "color": 5620992}])
+        postCount += 1
 
 
 def output_quest(q_list, title):
+    global postCount
     # fields の内容を事前作成
     date_items = []
     prev_openedAt = 0
@@ -530,7 +618,8 @@ def output_quest(q_list, title):
         openedAt = datetime.fromtimestamp(quest[5])
         closedAt = datetime.fromtimestamp(quest[6])
         if i == 0:
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             items.append(','.join([str(n) for n in quest[:-2]]))
             prev_openedAt = openedAt
             prev_closedAt = closedAt
@@ -539,7 +628,8 @@ def output_quest(q_list, title):
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             items = []
             items.append(','.join([str(n) for n in quest[:-2]]))
             prev_openedAt = openedAt
@@ -551,7 +641,7 @@ def output_quest(q_list, title):
     fields = []
     for date_item in date_items:
         logger.debug(date_item)
-        field = [{"name": "日時",
+        field = [{"name": ":date: 日時",
                  "value": date_item["date"]
                   },
                  {
@@ -568,6 +658,7 @@ def output_quest(q_list, title):
                                 "title": title + "更新",
                                 "fields": fields,
                                 "color": 5620992}])
+        postCount += 1
 
 
 def check_quests(updatefiles, cid="HEAD"):
@@ -601,15 +692,30 @@ def check_quests(updatefiles, cid="HEAD"):
             continue
         if "高難易度" in quest["name"]:
             enemy = questId2classIds[quest["id"]]
-            q_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], 'AP' + str(quest["actConsume"]), list2class(enemy), quest["openedAt"], quest["closedAt"]])
+            q_list.append([quest["id"], quest["name"],
+                           'Lv' + quest["recommendLv"],
+                           'AP' + str(quest["actConsume"]),
+                           list2class(enemy),
+                           quest["openedAt"],
+                           quest["closedAt"]])
             continue
         for q in mstQuestInfo_list:
             if q["questId"] == quest["id"]:
                 enemy = questId2classIds[quest["id"]]
                 if quest["id"] > 94000000:
-                    q_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], 'AP' + str(quest["actConsume"]), list2class(enemy), quest["openedAt"], quest["closedAt"]])
+                    q_list.append([quest["id"], quest["name"],
+                                   'Lv' + quest["recommendLv"],
+                                   'AP' + str(quest["actConsume"]),
+                                   list2class(enemy),
+                                   quest["openedAt"],
+                                   quest["closedAt"]])
                 else:
-                    fq_list.append([quest["id"], quest["name"], 'Lv' + quest["recommendLv"], 'AP' + str(quest["actConsume"]), list2class(enemy), quest["openedAt"], quest["closedAt"]])
+                    fq_list.append([quest["id"], quest["name"],
+                                    'Lv' + quest["recommendLv"],
+                                    'AP' + str(quest["actConsume"]),
+                                    list2class(enemy),
+                                    quest["openedAt"],
+                                    quest["closedAt"]])
                 break
 
     logger.debug(q_list)
@@ -618,98 +724,122 @@ def check_quests(updatefiles, cid="HEAD"):
     output_quest(fq_list, "恒常フリークエスト")
 
 
-def check_mastermissions(mstEventMission_list):
+def check_mastermissions(EM_list):
     """
     マスターミッションをチェックする
     """
-    if len(mstEventMission_list) != 0:
+    global postCount
+    if len(EM_list) != 0:
+        thumb_url = aa_url + "/GameData/JP/Items/16.png"
+        sdate = str(datetime.fromtimestamp(EM_list[0]["startedAt"]))
+        edate = str(datetime.fromtimestamp(EM_list[0]["endedAt"]))
+        date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
+        vdata = '\n'.join(['- ' + n["detail"] for n in EM_list])
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{"title": "マスターミッション(ウィークリー)更新",
                               "thumbnail": {
-                                            "url": "https://assets.atlasacademy.io/GameData/JP/Items/16.png"
+                                            "url": thumb_url
                                             },
                               "fields": [{
-                                          "name": "日時",
-                                          "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMission_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMission_list[0]["endedAt"])) + '```'
+                                          "name": ":date: 日時",
+                                          "value": date_value
                                           },
                                          {
                                           "name": "ミッション",
-                                          "value": '\n'.join(['- ' + n["detail"] for n in mstEventMission_list])
+                                          "value": vdata
                                           }
                                          ],
                               "color": 5620992}])
+        postCount += 1
 
 
-def check_eventmissions(mstEventMissionLimited_list):
+def check_eventmissions(EML_list):
     """
     イベントミッションをチェックする
     """
-    if len(mstEventMissionLimited_list) != 0:
+    global postCount
+    if len(EML_list) != 0:
+        sdate = str(datetime.fromtimestamp(EML_list[0]["startedAt"]))
+        edate = str(datetime.fromtimestamp(EML_list[0]["endedAt"]))
+        date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
+        vdata = '\n'.join(['- ' + n["detail"] for n in EML_list])
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
                                 "title": "限定ミッション更新",
                                 "fields": [
                                     {
-                                        "name": "日時",
-                                        "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '```'
+                                        "name": ":date: 日時",
+                                        "value": date_value
                                     }, {
                                         "name": "ミッション",
-                                        "value": '\n'.join(['- ' + n["detail"] for n in mstEventMissionLimited_list])
+                                        "value": vdata
                                     }
                                 ],
                                 "color": 5620992}])
+        postCount += 1
 
 
-def check_dailymissions(mstEventMissionDaily_list):
+def check_dailymissions(EMD_list):
     """
     デイリーミッションをチェックする
     """
-    if len(mstEventMissionDaily_list) != 0:
+    global postCount
+    if len(EMD_list) != 0:
+        thumb_url = aa_url + "/GameData/JP/Items/7.png"
+        sdate = str(datetime.fromtimestamp(EMD_list[0]["startedAt"]))
+        edate = str(datetime.fromtimestamp(EMD_list[0]["endedAt"]))
+        date_value = '```開始 | ' + sdate + '\n終了 | ' + edate + '```'
+        vdata = '\n'.join(['- ' + n["detail"] for n in EMD_list])
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
                                 "title": "ミッション(デイリー)更新",
                                 "thumbnail": {
-                                              "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                              "url": thumb_url
                                               },
                                 "fields": [
                                     {
-                                        "name": "日時",
-                                        "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMissionDaily_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMissionDaily_list[0]["endedAt"])) + '```'
+                                        "name": ":date: 日時",
+                                        "value": date_value
                                     }, {
                                         "name": "ミッション",
-                                        "value": '\n'.join(['- ' + n["detail"] for n in mstEventMissionDaily_list])
+                                        "value": vdata
                                     }
                                 ],
                                 "color": 5620992}])
+        postCount += 1
 
 
-def check_raddermissions(mstEventMissionLimited_list, cid):
+def check_raddermissions(RM_list, cid):
     """
     イベントミッション(はしご式)をチェックする
     Discord の文字制限2000字を超えるのでファイルで出力
     """
+    global postCount
     # 一時ファイルをつくらないで投稿する方法が良く分からないのでtempfileを使用
 
-    if len(mstEventMissionLimited_list) != 0:
+    if len(RM_list) != 0:
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
         pattern = pattern1 + " " + pattern2
 
-        mstEventMissionCondition = load_file(mstEventMissionCondition_file, cid)
-        mCondition = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition[::-1]}
-        mCondition_final = {m["missionId"]: m["conditionMessage"] for m in mstEventMissionCondition}
+        EMC = load_file(mstEventMissionCondition_file,
+                        cid)
+        mCondition = {m["missionId"]: m["conditionMessage"] for m in EMC[::-1]}
+        mCondition_final = {m["missionId"]: m["conditionMessage"] for m in EMC}
 
         # No. 順出力
-        mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['dispNo'])
+        RM_list = sorted(RM_list, key=lambda x: x['dispNo'])
         s = '〔イベントミッションリスト (No. 順)〕\n'
-        s += '開始: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n'
-        s += '終了: ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '\n'
+        s += '開始: ' + str(datetime.fromtimestamp(RM_list[0]["startedAt"]))
         s += '\n'
-#        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
-        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + mCondition_final[n["id"]].split("\n")[0] for n in mstEventMissionLimited_list])
+        s += '終了: ' + str(datetime.fromtimestamp(RM_list[0]["endedAt"]))
+        s += '\n\n'
+        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' '
+                        + mCondition_final[n["id"]].split("\n")[0]
+                        for n in RM_list])
         # 開放順出力
         s += '\n'
         s += '\n'
@@ -717,17 +847,17 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
 
         # "conditionMessage" で振り分け
         new_list = []
-        for em in mstEventMissionLimited_list:
+        for em in RM_list:
             cond = mCondition[em["id"]]
             m1 = re.search(pattern, cond)
             if m1:
                 str_o = r"\g<month>/\g<day> \g<hour>:\g<min>"
                 opendaytime = re.sub(pattern, str_o, m1.group())
-                openedAt = int(
-                                  datetime.strptime(
-                                              str(datetime.fromtimestamp(em["startedAt"]).year) + '/' + opendaytime,
-                                              "%Y/%m/%d %H:%M").timestamp()
-                                  )
+                # 年は指定されてないので開始時刻から取得
+                year = str(datetime.fromtimestamp(em["startedAt"]).year)
+                dt_date = datetime.strptime(year + '/' + opendaytime,
+                                            "%Y/%m/%d %H:%M")
+                openedAt = int(dt_date.timestamp())
                 em["openedAt"] = openedAt
                 em["has_data"] = True
             else:
@@ -740,9 +870,11 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
             if prev_time != l['openedAt']:
                 if i != 0:
                     s += '\n'
-                s += "開放日: " + str(datetime.fromtimestamp(l['openedAt'])) + '\n'
+                s += "開放日: " + str(datetime.fromtimestamp(l['openedAt']))
+                s += '\n'
                 prev_time = l['openedAt']
-            s += '- No.' + str(l["dispNo"]) + ' ' + mCondition_final[l["id"]] + '\n'
+            s += '- No.' + str(l["dispNo"]) + ' '
+            s += mCondition_final[l["id"]] + '\n'
             # "conditionMessage": "???\n※「1/21 18:00」以降、特定条件達成で開放",
 
         tmpdir = tempfile.TemporaryDirectory()
@@ -757,20 +889,7 @@ def check_raddermissions(mstEventMissionLimited_list, cid):
                            },
                      )
         tmpdir.cleanup()
-        # discord.post(username="FGO アップデート",
-        #              avatar_url=avatar_url,
-        #              embeds=[{
-        #                         "title": "イベントミッション更新",
-        #                         "fields": [
-        #                             {
-        #                                 "name": "日時",
-        #                                 "value": '```開始 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(mstEventMissionLimited_list[0]["endedAt"])) + '```'
-        #                             }, {
-        #                                 "name": "ミッション",
-        #                                 "value": '\n'.join(['- No.' + str(n["dispNo"]) + ' ' + n["detail"] for n in mstEventMissionLimited_list])
-        #                             }
-        #                         ],
-        #                         "color": 5620992}])
+        postCount += 1
 
 
 def check_missions(updatefiles, cid="HEAD"):
@@ -782,7 +901,8 @@ def check_missions(updatefiles, cid="HEAD"):
     # 集合演算で新idだけ抽出
     mstEventMission = load_file(mstEventMission_file, cid)
     event = set([s["id"] for s in mstEventMission])
-    mstEventMission_prev = json.loads(repo.git.show(cid + "^:" + mstEventMission_file))
+    mstEventMission_prev = json.loads(repo.git.show(cid + "^:"
+                                      + mstEventMission_file))
     event_prev = set([s["id"] for s in mstEventMission_prev])
     eventMissiontIds = list(event - event_prev)
     logger.debug(eventMissiontIds)
@@ -790,19 +910,23 @@ def check_missions(updatefiles, cid="HEAD"):
     mstRadderMission_list = [m for m in mstEventMission
                              if m["type"] == 1
                              and m["id"] in eventMissiontIds]
-    mstRadderMission_list = sorted(mstRadderMission_list, key=lambda x: x["startedAt"])
+    mstRadderMission_list = sorted(mstRadderMission_list,
+                                   key=lambda x: x["startedAt"])
     mstEventMission_list = [m for m in mstEventMission
                             if m["type"] == 2
                             and m["id"] in eventMissiontIds]
-    mstEventMission_list = sorted(mstEventMission_list, key=lambda x: x['closedAt'])
+    mstEventMission_list = sorted(mstEventMission_list,
+                                  key=lambda x: x['closedAt'])
     mstEventMissionDaily_list = [m for m in mstEventMission
                                  if m["type"] == 3
                                  and m["id"] in eventMissiontIds]
-    mstEventMissionDaily_list = sorted(mstEventMissionDaily_list, key=lambda x: x['closedAt'])
+    mstEventMissionDaily_list = sorted(mstEventMissionDaily_list,
+                                       key=lambda x: x['closedAt'])
     mstEventMissionLimited_list = [m for m in mstEventMission
                                    if m["type"] == 6
                                    and m["id"] in eventMissiontIds]
-    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list, key=lambda x: x['closedAt'])
+    mstEventMissionLimited_list = sorted(mstEventMissionLimited_list,
+                                         key=lambda x: x['closedAt'])
 
     check_raddermissions(mstRadderMission_list, cid)
     check_eventmissions(mstEventMissionLimited_list)
@@ -810,57 +934,11 @@ def check_missions(updatefiles, cid="HEAD"):
     check_dailymissions(mstEventMissionDaily_list)
 
 
-def check_event(updatefiles, cid="HEAD"):
-    """
-    イベント・キャンペーンをチェックする
-    終了日時はそれぞれ異なるので煩雑になるため表記しないこととする
-    """
-    if mstEvent_file not in updatefiles:
-        return
-    # 集合演算で新idだけ抽出
-    mstEvent = load_file(mstEvent_file, cid)
-    event = set([s["id"] for s in mstEvent])
-    mstEvent_prev = json.loads(repo.git.show(cid + "^:" + mstEvent_file))
-    event_prev = set([s["id"] for s in mstEvent_prev])
-    eventIds = list(event - event_prev)
-    logger.debug(eventIds)
-
-    mstEvent_list = [m for m in mstEvent
-                     if m["id"] in eventIds]
-    fieleds = []
-
-    if len(mstEvent_list) == 0:
-        return
-
-    for event in mstEvent_list:
-        logger.debug(event["type"])
-        if event["type"] == 12:
-            title = "イベント・クエスト"
-        else:
-            title = "キャンペーン"
-        fieled1 = {
-                   "name": "日時",
-                   "value": '```開始 | ' + str(datetime.fromtimestamp(event["startedAt"])) + '\n終了 | ' + str(datetime.fromtimestamp(event["endedAt"])) + '```'
-                   }
-        fieleds.append(fieled1)
-        fieled2 = {
-                   "name": title,
-                   "value": event["detail"]
-                   }
-        fieleds.append(fieled2)
-
-    discord.post(username="FGO アップデート",
-                 avatar_url=avatar_url,
-                 embeds=[{
-                          "title": "イベント・キャンペーン更新",
-                          "fields": fieleds,
-                          "color": 5620992}])
-
-
 def output_shop(shop_list, shopname):
     """
     ショップデータを出力する
     """
+    global postCount
     # fields の内容を事前作成
     date_items = []
     prev_openedAt = 0
@@ -873,7 +951,8 @@ def output_shop(shop_list, shopname):
         # price = str(item["prices"][0])
         # limitNum = str(item["limitNum"]) if item["limitNum"] != 0 else "∞"
         if i == 0:
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             # items.append(item["name"] + " @" + price + " x" + limitNum)
             items.append(item)
             prev_openedAt = openedAt
@@ -884,14 +963,16 @@ def output_shop(shop_list, shopname):
         else:
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
-            itemdate = '```開始 | ' + str(openedAt) + '\n終了 | ' + str(closedAt) + '```'
+            itemdate = '```開始 | ' + str(openedAt) \
+                       + '\n終了 | ' + str(closedAt) + '```'
             items = []
             # items.append(item["name"] + " @" + price + " x" + limitNum)
             items.append(item)
             prev_openedAt = openedAt
             prev_closedAt = closedAt
     if len(items) > 0:
-        items = sorted(sorted(items, key=lambda x: x["id"]), key=lambda x: x["itemIds"][0], reverse=True)
+        items = sorted(sorted(items, key=lambda x: x["id"]),
+                       key=lambda x: x["itemIds"][0], reverse=True)
         date_item = {"date": itemdate, "items": items}
         date_items.append(date_item)
     # ソート
@@ -899,7 +980,7 @@ def output_shop(shop_list, shopname):
     fields = []
     for date_item in date_items:
         logger.debug(date_item)
-        field = [{"name": "日時",
+        field = [{"name": ":date: 日時",
                  "value": date_item["date"]
                   }]
         prev_itemId = 0
@@ -910,17 +991,26 @@ def output_shop(shop_list, shopname):
                     f = {"name": "アイテム"}
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
-                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
                 prev_itemId = itemId
             elif prev_itemId == itemId:
-                f["value"] += "\n- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] += "\n- " + item["name"] \
+                              + " @" + str(item["prices"][0])\
+                              + " x" + (str(item["limitNum"])
+                                        if item["limitNum"] != 0 else "∞")
             else:
                 field.append(f)
                 if itemId in [0, 18]:
                     f = {"name": "アイテム"}
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
-                f["value"] = "- " + item["name"] + " @" + str(item["prices"][0]) + " x" + (str(item["limitNum"]) if item["limitNum"] != 0 else "∞")
+                f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
                 prev_itemId = itemId
         if len(f) > 0:
             field.append(f)
@@ -928,26 +1018,31 @@ def output_shop(shop_list, shopname):
     logger.debug(fields)
 
     if len(fields) != 0:
+        aa_asset_url = "https://assets.atlasacademy.io"
         if shopname == "マナプリズム交換":
+            thumb_url = aa_asset_url + "/GameData/JP/Items/7.png"
             discord.post(username="FGO アップデート",
                          avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
-                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/7.png"
+                                                "url": thumb_url
                                                 },
                                   "fields": fields,
                                   "color": 5620992}])
+            postCount += 1
         elif shopname == "レアプリズム交換":
+            thumb_url = aa_asset_url + "/GameData/JP/Items/18.png"
             discord.post(username="FGO アップデート",
                          avatar_url=avatar_url,
                          embeds=[{
                                   "title": shopname + "更新",
                                   "thumbnail": {
-                                                "url": "https://assets.atlasacademy.io/GameData/JP/Items/18.png"
+                                                "url": thumb_url
                                                 },
                                   "fields": fields,
                                   "color": 5620992}])
+            postCount += 1
         else:
             discord.post(username="FGO アップデート",
                          avatar_url=avatar_url,
@@ -955,6 +1050,7 @@ def output_shop(shop_list, shopname):
                                   "title": shopname + "更新",
                                   "fields": fields,
                                   "color": 5620992}])
+            postCount += 1
 
 
 def check_shop(updatefiles, cid="HEAD"):
@@ -1007,31 +1103,40 @@ def check_svtfilter(updatefiles, cid="HEAD"):
     """
     サーヴァント強化フィルターの更新チェック
     """
-    # if mstSvtFilter_file not in updatefiles:
-    #     return
+    global postCount
+    if mstSvtFilter_file not in updatefiles:
+        return
     # 集合演算で新idだけ抽出
     mstSvtFilter = load_file(mstSvtFilter_file, cid)
     SvtFilter = set([s["id"] for s in mstSvtFilter])
-    mstSvtFilter_prev = json.loads(repo.git.show(cid + "^:" + mstSvtFilter_file))
+    mstSvtFilter_prev = json.loads(repo.git.show(cid + "^:"
+                                   + mstSvtFilter_file))
     SvtFilter_prev = set([s["id"] for s in mstSvtFilter_prev])
     SvtFilterIds = list(SvtFilter - SvtFilter_prev)
     logger.debug(SvtFilterIds)
 
-    mstSvt_list = [q for q in mstSvt if (q["type"] == 1 or q["type"] == 2) and q["collectionNo"] not in mstSvt and q["collectionNo"] != 0]
+    mstSvt_list = [q for q in mstSvt
+                   if (q["type"] == 1 or q["type"] == 2)
+                   and q["collectionNo"] not in mstSvt
+                   and q["collectionNo"] != 0]
     mstSvtFilter_list = [m for m in mstSvtFilter
                          if m["id"] in SvtFilterIds]
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
-    mstSvtF_dic = {m["id"]: {"name": m["name"], "cost": m["cost"], "classId": m["classId"]} for m in mstSvt_list}
+    mstSvtF_dic = {m["id"]: {"name": m["name"],
+                             "cost": m["cost"],
+                             "classId": m["classId"]} for m in mstSvt_list}
     logger.debug("mstSvtFilter_list: %s", mstSvtFilter_list)
     for svtFilter in mstSvtFilter_list:
         svts = {}
         for svtId in svtFilter["svtIds"]:
             if mstSvtF_dic[svtId]["classId"] not in svts.keys():
-                svts[mstSvtF_dic[svtId]["classId"]] = [{"name": mstSvtF_dic[svtId]["name"],
-                                                       "cost": mstSvtF_dic[svtId]["cost"]}]
+                svts[mstSvtF_dic[svtId]["classId"]
+                     ] = [{"name": mstSvtF_dic[svtId]["name"],
+                           "cost": mstSvtF_dic[svtId]["cost"]}]
             else:
-                svts[mstSvtF_dic[svtId]["classId"]].append({"name": mstSvtF_dic[svtId]["name"],
-                                                            "cost": mstSvtF_dic[svtId]["cost"]})
+                svts[mstSvtF_dic[svtId]["classId"]
+                     ].append({"name": mstSvtF_dic[svtId]["name"],
+                               "cost": mstSvtF_dic[svtId]["cost"]})
         svts = sorted(svts.items())
         logger.debug(svts)
         # filelds を作成
@@ -1039,13 +1144,16 @@ def check_svtfilter(updatefiles, cid="HEAD"):
         for svt in svts:
             out = sorted(svt[1], key=lambda x: x['cost'], reverse=True)
             fields.append({"name": id2class[svt[0]],
-                           "value": '\n'.join(['- ' + cost2rarity[m["cost"]] + " " + m["name"] for m in out])})
+                           "value": '\n'.join(['- ' + cost2rarity[m["cost"]]
+                                               + " " + m["name"]
+                                               for m in out])})
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
                      embeds=[{
                                 "title": svtFilter["name"] + "フィルター更新",
                                 "fields": fields,
                                 "color": 5620992}])
+        postCount += 1
 
 
 def plot_equiipExp(name, mc_exp):
@@ -1054,6 +1162,7 @@ def plot_equiipExp(name, mc_exp):
     """
     # ロードに時間がかかり、かつたまにしか実行されないため遅延 import
     import matplotlib.pyplot as plt
+    global postCount
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
 
@@ -1087,6 +1196,7 @@ def plot_equiipExp(name, mc_exp):
                        },
                  )
     tmpdir.cleanup()
+    postCount += 1
 
 
 def check_mstEquip(updatefiles, cid="HEAD"):
@@ -1095,6 +1205,7 @@ def check_mstEquip(updatefiles, cid="HEAD"):
     """
     if mstEquip_file not in updatefiles:
         return
+    global postCount
     # 集合演算で新idだけ抽出
     mstEquip = load_file(mstEquip_file, cid)
     Equip = set([s["id"] for s in mstEquip])
@@ -1110,13 +1221,20 @@ def check_mstEquip(updatefiles, cid="HEAD"):
                      if m["id"] in equipIds]
     logger.debug("mstEquip_list: %s", mstEquip_list)
     for equip in mstEquip_list:
-        skill1_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 1][0]
-        skill2_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 2][0]
-        skill3_id = [s["skillId"] for s in mstEquipSkill if s["equipId"] == equip["id"] and s["num"] == 3][0]
-        skill1_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill1_id and s["lv"] == 1][0]
-        skill2_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill2_id and s["lv"] == 1][0]
-        skill3_ct = [s["chargeTurn"] for s in mstSkillLv if s["skillId"] == skill3_id and s["lv"] == 1][0]
-        mc_exp = [0] + [e["exp"] for e in mstEquipExp if e["equipId"] == equip["id"]][:-1]
+        skill1_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 1][0]
+        skill2_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 2][0]
+        skill3_id = [s["skillId"] for s in mstEquipSkill
+                     if s["equipId"] == equip["id"] and s["num"] == 3][0]
+        skill1_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill1_id and s["lv"] == 1][0]
+        skill2_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill2_id and s["lv"] == 1][0]
+        skill3_ct = [s["chargeTurn"] for s in mstSkillLv
+                     if s["skillId"] == skill3_id and s["lv"] == 1][0]
+        mc_exp = [0] + [e["exp"] for e in mstEquipExp
+                        if e["equipId"] == equip["id"]][:-1]
         logger.debug("mc_exp: %s", mc_exp)
         discord.post(username="FGO アップデート",
                      avatar_url=avatar_url,
@@ -1151,6 +1269,7 @@ def check_mstEquip(updatefiles, cid="HEAD"):
                                     }
                                 ],
                                 "color": 5620992}])
+        postCount += 1
         plot_equiipExp(equip["name"], mc_exp)
 
 
@@ -1181,10 +1300,27 @@ def lock_or_through(func):
     return lock
 
 
+def post(func, updatefiles, cid="HEAD"):
+    """
+    エラーになっても止まらないように
+    """
+    try:
+        func(updatefiles, cid)
+    except Exception as e:
+        logger.exception(e)
+        discord_error.post(username="FGO アップデート",
+                           avatar_url=avatar_url,
+                           embeds=[{
+                                    "title": func.__name__ + "Error",
+                                    "description": e,
+                                    "color": 15158332}])
+
+
 @lock_or_through
 def main(args):
     if args.cid != "HEAD" or check_update():
-        updatefiles = repo.git.diff(args.cid + '^..' + args.cid, name_only=True).split('\n')
+        updatefiles = repo.git.diff(args.cid + '^..'
+                                    + args.cid, name_only=True).split('\n')
         if mstSvtFilter_file in updatefiles or mstSvt_file in updatefiles:
             global mstSvt
             global id2class
@@ -1201,116 +1337,21 @@ def main(args):
             mstSkillDetail = load_file(mstSkillDetail_file, args.cid)
             mstSkillLv = load_file(mstSkillLv_file, args.cid)
             mstFunc = load_file(mstFunc_file, args.cid)
-        try:
-            check_datavar(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
+
+        funcs = [check_gacha, check_svt, check_strengthen, check_quests,
+                 check_missions, check_shop, check_svtfilter, check_mstEquip,
+                 check_datavar]
+        for func in funcs:
+            post(func, updatefiles, cid=args.cid)
+        if postCount > 10:
+            description = "bot が自動公開するのは10件のみです\n" \
+                          + str(postCount - 10) + "件は手動で公開してください"
             discord_error.post(username="FGO アップデート",
                                avatar_url=avatar_url,
                                embeds=[{
-                                "title": "check_datavar Error",
-                                "description": e,
-                                "color": 15158332}])
-        try:
-            check_gacha(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_gacha Error",
-                                "description": str(e),
-                                "color": 15158332}])
-        try:
-            check_svt(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_svt Error",
-                                "description": str(e),
-                                "color": 15158332}])
-        try:
-            check_np(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_np Error",
-                                "description": str(e),
-                                "color": 15158332}])
-        try:
-            check_skill(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_skill Error",
-                                "description": str(e),
-                                "color": 15158332}])
-        try:
-            check_quests(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_quests Error",
-                                "description": str(e),
-                                "color": 15158332}])
-        try:
-            check_missions(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_missions Error",
-                                "description": e,
-                                "color": 15158332}])
-        try:
-            check_event(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_event Error",
-                                "description": e,
-                                "color": 15158332}])
-        try:
-            check_shop(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_shop Error",
-                                "description": e,
-                                "color": 15158332}])
-        try:
-            check_svtfilter(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_svtfilter Error",
-                                "description": e,
-                                "color": 15158332}])
-        try:
-            check_mstEquip(updatefiles, cid=args.cid)
-        except Exception as e:
-            logger.exception(e)
-            discord_error.post(username="FGO アップデート",
-                               avatar_url=avatar_url,
-                               embeds=[{
-                                "title": "check_mstEquip Error",
-                                "description": e,
-                                "color": 15158332}])
+                                        "title": str(postCount) + "件投稿",
+                                        "description": description,
+                                        "color": 15158332}])
 
 
 if __name__ == '__main__':
@@ -1327,7 +1368,8 @@ if __name__ == '__main__':
     args = parser.parse_args()    # 引数を解析
     logging.basicConfig(
         level=logging.INFO,
-        format='%(name)s <%(filename)s-L%(lineno)s> [%(levelname)s] %(message)s',
+        format='%(name)s <%(filename)s-L%(lineno)s>'
+               + ' [%(levelname)s] %(message)s',
     )
     logger.setLevel(args.loglevel.upper())
 
