@@ -828,13 +828,18 @@ def check_raddermissions(RM_list, cid):
 
         # No. 順出力
         RM_list = sorted(RM_list, key=lambda x: x['dispNo'])
-        s = '〔イベントミッションリスト (No. 順)〕\n'
+        s = '〔イベントミッションリスト (No.順)〕\n'
         s += '開始: ' + str(datetime.fromtimestamp(RM_list[0]["startedAt"]))
         s += '\n'
         s += '終了: ' + str(datetime.fromtimestamp(RM_list[0]["endedAt"]))
         s += '\n\n'
+        # No. 順出力のときは【】で記述される開放部分は出力しない
+        # desc = mCondition_final[n["id"]].replace("\n")
+        # desc = re.sub(r'【[^)]*】', '', desc)
+
         s += '\n'.join(['- No.' + str(n["dispNo"]) + ' '
-                        + mCondition_final[n["id"]].split("\n")[0]
+                        + re.sub(r'【.*?】', '',
+                                 mCondition_final[n["id"]].replace("\n", ""))
                         for n in RM_list])
         # 開放順出力
         s += '\n'
