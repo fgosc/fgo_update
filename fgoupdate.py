@@ -231,7 +231,7 @@ def output_gacha(gacha_list):
         closedAt = datetime.fromtimestamp(item["closedAt"])
         if i == 0:
             itemdate = '```開始 | ' + str(openedAt) \
-                       + '\n終了 | ' + str(closedAt) + '```'
+                       + '\n終了 | ' + str(closedAt) + '```\n'
             items.append("[" + item["name"]
                          + "](https://view.fate-go.jp/webview/summon"
                          + item["detailUrl"] + "_header.html)")
@@ -243,7 +243,7 @@ def output_gacha(gacha_list):
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
             itemdate = '```開始 | ' + str(openedAt) \
-                       + '\n終了 | ' + str(closedAt) + '```'
+                       + '\n終了 | ' + str(closedAt) + '```\n'
             items = []
             items.append(item["name"])
             prev_openedAt = openedAt
@@ -255,7 +255,7 @@ def output_gacha(gacha_list):
     description = ""
     for date_item in date_items:
         logger.debug(date_item)
-        description += ":date: **日時**"
+        description += "\n:date: **日時**\n"
         description += date_item["date"]
         description += '\n'.join(['- ' + n for n in date_item["items"]])
         description += "\n"
@@ -449,7 +449,7 @@ def check_svt(updatefiles, cid="HEAD"):
                        + id2class[svt["classId"]] \
                        + ' ||' + svt["name"] + "||(※おそらくストーリーのネタバレを含みます)"
             else:
-                desp = "[" + "- No." + str(svt["collectionNo"])
+                desp = "- [" + "No." + str(svt["collectionNo"])
                 desp += ' ' + cost2rarity[svt["cost"]] + ' ' \
                         + id2class[svt["classId"]] + ' ' + svt["name"] + "]"
                 desp += "(" + "https://apps.atlasacademy.io/db/#/JP/servant/" \
@@ -501,6 +501,7 @@ def check_strengthen(updatefiles, cid="HEAD"):
     強化をチェックする
     """
     global postCount
+    face_icon = -1
     np_desc = ""
     if mstTreasureDevice_file in updatefiles:
         # 集合演算で新idだけ抽出
@@ -527,6 +528,8 @@ def check_strengthen(updatefiles, cid="HEAD"):
             logger.debug(svtId)
             try:
                 svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+                if face_icon == -1:
+                    face_icon = svtId
             except Exception as e:
                 logger.exception(e)
                 continue
@@ -579,7 +582,13 @@ def check_strengthen(updatefiles, cid="HEAD"):
             svtId = [s["svtId"] for s in mstSvtSkill
                      if s["skillId"] == svtSkill][0]
             logger.debug(svtId)
-            svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+            try:
+                svt = [s for s in mstSvt_list if s["id"] == svtId][0]
+                if face_icon == -1:
+                    face_icon = svtId
+            except Exception as e:
+                logger.exception(e)
+                continue
             logger.debug(svt)
             skill_desc += ":mage: No." + str(svt["collectionNo"])
             skill_desc += ' ' + cost2rarity[svt["cost"]] + ' '
@@ -601,9 +610,15 @@ def check_strengthen(updatefiles, cid="HEAD"):
             skill_desc = "**スキル強化**\n" + skill_desc
 
     if len(np_desc + skill_desc) != 0:
+        thumb_url = aa_url + "/GameData/JP/Faces/f_" \
+                    + str(face_icon) + "0.png"
+        logger.info(thumb_url)
         discord.post(username="FGO アップデート",
                      embeds=[{
                               "title": "サーヴァント強化",
+                              "thumbnail": {
+                                            "url": thumb_url
+                                            },
                               "description": np_desc + skill_desc,
                               "color": 5620992}])
         postCount += 1
