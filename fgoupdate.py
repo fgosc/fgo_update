@@ -70,6 +70,9 @@ mstTreasureDevice_file = "JP_tables/treasure/mstTreasureDevice.json"
 mstSvtTreasureDevice_file = "JP_tables/svt/mstSvtTreasureDevice.json"
 mstTreasureDeviceDetail_file = "JP_tables/treasure/mstTreasureDeviceDetail.json"
 mstItem_file = "JP_tables/item/mstItem.json"
+mstBoxGacha_file = "JP_tables/box/mstBoxGacha.json"
+mstBoxGachaBase_file = "JP_tables/box/mstBoxGachaBase.json"
+mstGift_file = "JP_tables/gift/mstGift.json"
 aa_url = "https://assets.atlasacademy.io"
 mstSvt = []
 id2class = {}
@@ -700,7 +703,10 @@ def check_quests(updatefiles, cid="HEAD"):
             continue
         for q in mstQuestInfo_list:
             if q["questId"] == quest["id"]:
-                enemy = questId2classIds[quest["id"]]
+                if quest["id"] not in questId2classIds.keys():
+                    enemy = ""
+                else:
+                    enemy = questId2classIds[quest["id"]]
                 if quest["id"] > 94000000:
                     q_list.append([quest["id"], quest["name"],
                                    'Lv' + quest["recommendLv"],
@@ -1305,6 +1311,93 @@ def check_eventReward(updatefiles, cid="HEAD"):
         postCount += 1
 
 
+def check_box(updatefiles, cid="HEAD"):
+    """
+    ボックス報酬を出力する
+    """
+    if mstBoxGacha_file not in updatefiles:
+        return
+    global postCount
+    global id2itemName
+    # 集合演算で新idだけ抽出
+    mstBG = load_file(mstBoxGacha_file, cid)
+    BG = set([s["id"] for s in mstBG])
+    mstBG_prev = json.loads(repo.git.show(cid + "^:" + mstBoxGacha_file))
+    BG_prev = set([s["id"] for s in mstBG_prev])
+    BGIds = list(BG - BG_prev)
+    logger.debug(BGIds)
+    mstGift = load_file(mstGift_file, cid)
+    giftId2itemId = {i["id"]: i["objectId"] for i in mstGift}
+    giftId2itemNum = {i["id"]: i["num"] for i in mstGift}
+
+    mstBGB = load_file(mstBoxGachaBase_file, cid)
+    id2itemName[9770300] = "叡智の大火"
+    id2itemName[9770400] = "叡智の猛火"
+    id2itemName[9770500] = "叡智の業火"
+    id2itemName[9670400] = "日輪のフォウくん"
+    id2itemName[9570400] = "流星のフォウくん"
+    for BG in BGIds:
+        BGdic = [b for b in mstBG if b["id"] == BG][0]
+        description = ":gift:**1回目のラインナップ**\n"
+        pLineup = {}
+        for i, baseId in enumerate(BGdic["baseIds"]):
+            # print(str(baseId)[-2:] + "回目")
+            lineups = [(i["targetId"], i["maxNum"]) for i in mstBGB
+                       if i["id"] == baseId]
+            cLineup = {}
+            for linup in lineups:
+                try:
+                    item = id2itemName[giftId2itemId[linup[0]]]
+                    itemNum = "(" + str(giftId2itemNum[linup[0]]) \
+                              + ")" if giftId2itemNum[linup[0]] > 1 else ""
+                    cLineup[item + itemNum] = linup[1]
+                except Exception as e:
+                    logger.exception(e)
+                    # cLinenup.append("{} x{}\n".format(linup[0], linup[1]))
+                    cLineup[linup[0]] = linup[1]
+            if i == 0:
+                # 一覧出力
+                description += '- '
+                lineup1 = ["{} x{}\n".format(ln, cLineup[ln]) for ln
+                           in cLineup.keys()]
+                description += '- '.join(lineup1)
+            else:
+                # 差分作成
+                desc_inner = ""
+                for p in pLineup.keys():
+                    if p in cLineup.keys():
+                        if pLineup[p] == cLineup[p]:
+                            continue
+                        desc_inner += "- " + p + ' x' + str(pLineup[p]) \
+                                      + "→" + str(cLineup[p]) + "\n"
+                        pLineup[p] = cLineup[p]
+                    else:
+                        desc_inner += "- " + p + ' x' \
+                                      + str(pLineup[p]) + "→0\n"
+                for c in cLineup.keys():
+                    if c in pLineup.keys():
+                        if pLineup[c] == cLineup[c]:
+                            continue
+                        desc_inner += "- " + c + ' x' + str(pLineup[c]) \
+                                      + "→" + str(cLineup[c]) + "\n"
+                    else:
+                        desc_inner += "- " + c + ' x0→' \
+                                      + str(cLineup[c]) + "\n"
+                if desc_inner != "":
+                    description += "\n:gift:**" \
+                                   + str(int(str(baseId - 1)[-2:])) + "回目→" \
+                                   + str(int(str(baseId)[-2:])) + "回目**\n"
+                    description += desc_inner
+            pLineup = cLineup.copy()
+
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                              "title": "ボックス プレゼントラインナップ更新",
+                              "description": description,
+                              "color": 5620992}])
+        postCount += 1
+
+
 def lock_or_through(func):
     '''
     ロックファイルによる排他制御デコレータ
@@ -1342,7 +1435,7 @@ def post(func, updatefiles, cid="HEAD"):
         discord_error.post(username="FGO アップデート",
                            embeds=[{
                                     "title": func.__name__ + "Error",
-                                    "description": e,
+                                    "description": "Check server log",
                                     "color": 15158332}])
 
 
@@ -1369,7 +1462,7 @@ def main(args):
             mstFunc = load_file(mstFunc_file, args.cid)
 
         funcs = [check_gacha, check_svt, check_strengthen, check_quests,
-                 check_missions, check_shop, check_eventReward,
+                 check_missions, check_shop, check_eventReward, check_box,
                  check_svtfilter, check_mstEquip, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
