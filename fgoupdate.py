@@ -73,8 +73,11 @@ mstItem_file = "JP_tables/item/mstItem.json"
 mstBoxGacha_file = "JP_tables/box/mstBoxGacha.json"
 mstBoxGachaBase_file = "JP_tables/box/mstBoxGachaBase.json"
 mstGift_file = "JP_tables/gift/mstGift.json"
+mstCommandCode_file = "JP_tables/command/mstCommandCode.json"
+mstSvtCostume_file = "JP_tables/svt/mstSvtCostume.json"
 aa_url = "https://assets.atlasacademy.io"
 mstSvt = []
+mstClass = []
 id2class = {}
 mstSkill = []
 mstSkillDetail = []
@@ -171,6 +174,8 @@ def check_datavar(updatefiles, cid="HEAD"):
             logger.debug(event["type"])
             if event["type"] == 12:
                 title = "イベント・クエスト"
+            elif event["type"] == 22:
+                title = "ボードゲーム有イベント"
             else:
                 title = "キャンペーン"
             fieled1 = {
@@ -612,7 +617,6 @@ def check_strengthen(updatefiles, cid="HEAD"):
     if len(np_desc + skill_desc) != 0:
         thumb_url = aa_url + "/GameData/JP/Faces/f_" \
                     + str(face_icon) + "0.png"
-        logger.info(thumb_url)
         discord.post(username="FGO アップデート",
                      embeds=[{
                               "title": "サーヴァント強化",
@@ -692,7 +696,8 @@ def check_quests(updatefiles, cid="HEAD"):
     questIds = list(quest - quest_prev)
     logger.debug(questIds)
 
-    mstQuest_list = [q for q in mstQuest if q["id"] in questIds]
+    mstQuest_list = [q for q in mstQuest if q["id"] in questIds
+                     if q["type"] != 7]
     mstQuest_list = sorted(mstQuest_list, key=lambda x: x['openedAt'])
 
     mstQuestInfo_list = load_file(mstQuestInfo_file, cid)
@@ -838,6 +843,15 @@ def check_raddermissions(RM_list, cid):
     # 一時ファイルをつくらないで投稿する方法が良く分からないのでtempfileを使用
 
     if len(RM_list) != 0:
+        global id2itemName
+        if len(id2itemName.keys()) == 0:
+            mstItem = load_file(mstItem_file, cid)
+            mstSvt = load_file(mstSvt_file, cid)
+            mstCommandCode = load_file(mstCommandCode_file, cid)
+            id2itemName = {item["id"]: item["name"] for item in mstItem}
+            id2itemName.update({item["id"]: item["name"] for item in mstSvt})
+            id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
         pattern = pattern1 + " " + pattern2
@@ -846,7 +860,7 @@ def check_raddermissions(RM_list, cid):
                         cid)
         mCondition = {m["missionId"]: m["conditionMessage"] for m in EMC[::-1]}
         mCondition_final = {m["missionId"]: m["conditionMessage"] for m in EMC}
-
+        mstGift = load_file(mstGift_file, cid)
         # No. 順出力
         RM_list = sorted(RM_list, key=lambda x: x['dispNo'])
         s = '〔イベントミッションリスト (No.順)〕\n'
@@ -855,13 +869,16 @@ def check_raddermissions(RM_list, cid):
         s += '終了: ' + str(datetime.fromtimestamp(RM_list[0]["endedAt"]))
         s += '\n\n'
         # No. 順出力のときは【】で記述される開放部分は出力しない
-        # desc = mCondition_final[n["id"]].replace("\n")
-        # desc = re.sub(r'【[^)]*】', '', desc)
 
-        s += '\n'.join(['- No.' + str(n["dispNo"]) + ' '
-                        + re.sub(r'【.*?】', '',
-                                 mCondition_final[n["id"]].replace("\n", ""))
-                        for n in RM_list])
+        for n in RM_list:
+            gifts = [(id2itemName[g["objectId"]], g["num"]) for g in mstGift if g["id"] == n["giftId"]]
+            s += '- No.' + str(n["dispNo"]) + '\t' \
+                 + re.sub(r'【.*?】', '',
+                          mCondition_final[n["id"]].replace("\n", "")) \
+                 + '\t'
+            s += "\t".join("{} x{:,}".format(gift[0], gift[1]) for gift in gifts)
+            s += "\n"
+
         # 開放順出力
         s += '\n'
         s += '\n'
@@ -896,8 +913,8 @@ def check_raddermissions(RM_list, cid):
                 s += '\n'
                 prev_time = l['openedAt']
             s += '- No.' + str(l["dispNo"]) + ' '
-            s += mCondition_final[l["id"]] + '\n'
-            # "conditionMessage": "???\n※「1/21 18:00」以降、特定条件達成で開放",
+            s += mCondition_final[l["id"]]
+            s += '\n'
 
         tmpdir = tempfile.TemporaryDirectory()
         # 日本語のファイル名には対応していない
@@ -1089,9 +1106,10 @@ def check_shop(updatefiles, cid="HEAD"):
     shopIds = list(shop - shop_prev)
     logger.debug(shopIds)
 
-    mstItem = load_file(mstItem_file, cid)
     global id2itemName
-    id2itemName = {item["id"]: item["name"] for item in mstItem}
+    if len(id2itemName.keys()) > 0:
+        mstItem = load_file(mstItem_file, cid)
+        id2itemName = {item["id"]: item["name"] for item in mstItem}
     eventShop_list = [m for m in mstShop
                       if m["shopType"] == 1
                       and m["id"] in shopIds]
@@ -1363,8 +1381,8 @@ def check_box(updatefiles, cid="HEAD"):
             for linup in lineups:
                 try:
                     item = id2itemName[giftId2itemId[linup[0]]]
-                    itemNum = "(" + str(giftId2itemNum[linup[0]]) \
-                              + ")" if giftId2itemNum[linup[0]] > 1 else ""
+                    itemNum = "({:,})".format(giftId2itemNum[linup[0]]) \
+                              if giftId2itemNum[linup[0]] > 1 else ""
                     cLineup[item + itemNum] = linup[1]
                 except Exception as e:
                     logger.exception(e)
@@ -1405,11 +1423,71 @@ def check_box(updatefiles, cid="HEAD"):
                     description += desc_inner
             pLineup = cLineup.copy()
 
+        payTargetId = [bg["payTargetId"] for bg in mstBG if bg["id"] == BG][0]
+        payTarget = id2itemName[payTargetId]
         discord.post(username="FGO アップデート",
                      embeds=[{
-                              "title": "ボックス プレゼントラインナップ更新",
+                              "title": "【ボックス】" + payTarget
+                                       + "交換 プレゼントラインナップ",
                               "description": description,
                               "color": 5620992}])
+        postCount += 1
+
+
+def check_costume(updatefiles, cid="HEAD"):
+    """
+    霊衣更新を出力する
+    """
+    global mstSvt
+    global mstClass
+    global id2class
+    global postCount
+    if mstSvtCostume_file not in updatefiles:
+        return
+    if len(mstSvt) == 0:
+        mstSvt = load_file(mstSvt_file, args.cid)
+    if len(mstClass) == 0:
+        mstClass = load_file(mstClass_file, args.cid)
+        id2class = {c["id"]: c["name"] for c in mstClass}
+    # 集合演算で新idだけ抽出
+    mSC = load_file(mstSvtCostume_file, cid)
+    SC = set([s["costumeCollectionNo"] for s in mSC])
+    mESC_prev = json.loads(repo.git.show(cid + "^:" + mstSvtCostume_file))
+    ESC_prev = set([s["costumeCollectionNo"] for s in mESC_prev])
+    SCIds = list(SC - ESC_prev)
+    logger.debug(SCIds)
+
+    fields = []
+    face_icon = -1
+    for SCId in SCIds:
+        costume = [sc for sc in mSC if sc["costumeCollectionNo"] == SCId][0]
+        svt = [s for s in mstSvt if s["id"] == costume["svtId"]][0]
+        if face_icon == -1:
+            face_icon = svt["id"]
+        name = "No." + str(svt["collectionNo"])
+        name += ' ' + cost2rarity[svt["cost"]] + ' '
+        name += id2class[svt["classId"]] + ' ' + svt["name"] + '\n'
+        value = "[" + costume["name"]
+        value += "]" \
+                 + "(https://apps.atlasacademy.io/db/#/JP/servant/" \
+                 + str(svt["collectionNo"]) + "/materials)"
+
+        value += '```' + costume["detail"] + '```\n'
+        value += '開放条件: ' + costume["itemGetInfo"] + '\n'
+
+        fields.append({"name": name,
+                       "value": value})
+    if len(SCIds) > 0:
+        thumb_url = aa_url + "/GameData/JP/Faces/f_" \
+                    + str(face_icon) + "0.png"
+        discord.post(username="FGO アップデート",
+                     embeds=[{
+                                "title": "霊衣更新",
+                                "thumbnail": {
+                                              "url": thumb_url
+                                              },
+                                "fields": fields,
+                                "color": 5620992}])
         postCount += 1
 
 
@@ -1478,7 +1556,7 @@ def main(args):
 
         funcs = [check_gacha, check_svt, check_strengthen, check_quests,
                  check_missions, check_shop, check_eventReward, check_box,
-                 check_svtfilter, check_mstEquip, check_datavar]
+                 check_svtfilter, check_mstEquip, check_costume, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
         if postCount > 10:
