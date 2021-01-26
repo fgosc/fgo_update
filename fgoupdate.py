@@ -49,6 +49,7 @@ mstQuestInfo_file = "JP_tables/quest/viewQuestInfo.json"
 mstQuestPhase_file = "JP_tables/quest/mstQuestPhase.json"
 mstEventMission_file = "JP_tables/event/mstEventMission.json"
 mstEventMissionCondition_file = "JP_tables/event/mstEventMissionCondition.json"
+mstEventMissionConditionDetail_file = "JP_tables/event/mstEventMissionConditionDetail.json"
 mstEvent_file = "JP_tables/event/mstEvent.json"
 mstShop_file = "JP_tables/shop/mstShop.json"
 mstEventReward_file = "JP_tables/event/mstEventReward.json"
@@ -749,6 +750,73 @@ def check_quests(updatefiles, cid="HEAD"):
     output_quest(fq_list, "恒常フリークエスト")
 
 
+def check_missionCondition(updatefiles, cid="HEAD"):
+    """
+    特別ミッションのクリア条件をチェックする
+    mstEventMisson->gift  "id": 8031015,
+    mstEventMissonCondition->"targetIds"8031014 "missionId": 8031015,
+    mstEventMissonConditionDetail "id": 8031014 "targetIds":(アイテム、クエスト)
+    """
+    global postCount
+    global id2itemName
+    if mstEventMissionCondition_file not in updatefiles:
+        return
+    if len(id2itemName.keys()) == 0:
+        mstItem = load_file(mstItem_file, cid)
+        mstSvt = load_file(mstSvt_file, cid)
+        mstCommandCode = load_file(mstCommandCode_file, cid)
+        mstQuest = load_file(mstQuest_file, cid)
+        id2itemName = {item["id"]: item["name"] for item in mstItem}
+        id2itemName.update({item["id"]: item["name"] for item in mstSvt})
+        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+
+    mEM = load_file(mstEventMission_file, cid)
+    id2type = {m["id"]: m["type"] for m in mEM}
+    # 集合演算で新idだけ抽出
+    mEMC = load_file(mstEventMissionCondition_file, cid)
+    EMC = set([s["id"] for s in mEMC
+               if s["targetIds"] != [0]
+               and int(s["targetIds"][0]/100) != 30000
+               and (s["condType"] == 22 or s["condType"] == 2)
+               and id2type[s["missionId"]] == 6
+               ])
+    mEMC_prev = json.loads(repo.git.show(cid + "^:"
+                           + mstEventMissionCondition_file))
+    EMC_prev = set([s["id"] for s in mEMC_prev
+                    if s["targetIds"] != [0]
+                    and int(s["targetIds"][0]/100) != 30000
+                    and (s["condType"] == 22 or s["condType"] == 2)
+                    and id2type[s["missionId"]] == 6
+                    ])
+    EMCIds = list(EMC - EMC_prev)
+    logger.debug(EMCIds)
+
+    mEMCd = load_file(mstEventMissionConditionDetail_file, cid)
+
+    fields = []
+    for EMCId in EMCIds:
+        mission = [m for m in mEMC if m["id"] == EMCId][0]
+        name = mission["conditionMessage"]
+        targetIds = [m['targetIds'] for m in mEMCd
+                     if mission["targetIds"][0] == m["id"]][0]
+        if max(targetIds) < 6000:
+            value = " Traitsに下記の数値を入力して[検索]"
+            value += "(https://apps.atlasacademy.io/db/#/JP/entities)\n"
+            value += "- " + str(targetIds[0])
+        else:
+            value = "- "
+            value += "\n- ".join([id2itemName[t] for t in targetIds])
+        fields.append({"name": name, "value": value})
+
+    discord.post(username="FGO アップデート",
+                 embeds=[{
+                          "title": "ミッション条件更新",
+                          "fields": fields,
+                          "color": 5620992}])
+    postCount += 1
+
+
 def check_mastermissions(EM_list):
     """
     マスターミッションをチェックする
@@ -848,9 +916,11 @@ def check_raddermissions(RM_list, cid):
             mstItem = load_file(mstItem_file, cid)
             mstSvt = load_file(mstSvt_file, cid)
             mstCommandCode = load_file(mstCommandCode_file, cid)
+            mstQuest = load_file(mstQuest_file, cid)
             id2itemName = {item["id"]: item["name"] for item in mstItem}
             id2itemName.update({item["id"]: item["name"] for item in mstSvt})
             id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+            id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
@@ -1109,7 +1179,14 @@ def check_shop(updatefiles, cid="HEAD"):
     global id2itemName
     if len(id2itemName.keys()) > 0:
         mstItem = load_file(mstItem_file, cid)
+        mstSvt = load_file(mstSvt_file, cid)
+        mstCommandCode = load_file(mstCommandCode_file, cid)
+        mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
+        id2itemName.update({item["id"]: item["name"] for item in mstSvt})
+        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+
     eventShop_list = [m for m in mstShop
                       if m["shopType"] == 1
                       and m["id"] in shopIds]
@@ -1352,6 +1429,16 @@ def check_box(updatefiles, cid="HEAD"):
         return
     global postCount
     global id2itemName
+    if len(id2itemName.keys()) == 0:
+        mstItem = load_file(mstItem_file, cid)
+        mstSvt = load_file(mstSvt_file, cid)
+        mstCommandCode = load_file(mstCommandCode_file, cid)
+        mstQuest = load_file(mstQuest_file, cid)
+        id2itemName = {item["id"]: item["name"] for item in mstItem}
+        id2itemName.update({item["id"]: item["name"] for item in mstSvt})
+        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+
     # 集合演算で新idだけ抽出
     mstBG = load_file(mstBoxGacha_file, cid)
     BG = set([s["id"] for s in mstBG])
@@ -1364,11 +1451,6 @@ def check_box(updatefiles, cid="HEAD"):
     giftId2itemNum = {i["id"]: i["num"] for i in mstGift}
 
     mstBGB = load_file(mstBoxGachaBase_file, cid)
-    id2itemName[9770300] = "叡智の大火"
-    id2itemName[9770400] = "叡智の猛火"
-    id2itemName[9770500] = "叡智の業火"
-    id2itemName[9670400] = "日輪のフォウくん"
-    id2itemName[9570400] = "流星のフォウくん"
     for BG in BGIds:
         BGdic = [b for b in mstBG if b["id"] == BG][0]
         description = ":gift:**1回目のラインナップ**\n"
@@ -1556,7 +1638,8 @@ def main(args):
 
         funcs = [check_gacha, check_svt, check_strengthen, check_quests,
                  check_missions, check_shop, check_eventReward, check_box,
-                 check_svtfilter, check_mstEquip, check_costume, check_datavar]
+                 check_svtfilter, check_mstEquip, check_costume,
+                 check_missionCondition, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
         if postCount > 10:
