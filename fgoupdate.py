@@ -15,6 +15,9 @@ from discordwebhook import Discord
 from zc import lockfile
 from zc.lockfile import LockError
 
+import trouble
+import info_trouble
+
 logger = logging.getLogger(__name__)
 
 inifile = "fgoupdate.ini"
@@ -219,6 +222,7 @@ def check_datavar(updatefiles, cid="HEAD"):
                                              + date_str,
                               "color": 5620992}])
     postCount += 1
+    info_trouble.getInfoTrouble()
 
 
 def output_gacha(gacha_list):
@@ -1616,6 +1620,7 @@ def post(func, updatefiles, cid="HEAD"):
 
 @lock_or_through
 def main(args):
+    global postCount
     if args.cid != "HEAD" or check_update():
         updatefiles = repo.git.diff(args.cid + '^..'
                                     + args.cid, name_only=True).split('\n')
@@ -1642,6 +1647,8 @@ def main(args):
                  check_missionCondition, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
+        # この機能だけは cid 指定の対象外
+        postCount += trouble.getTrouble()
         if postCount > 10:
             description = "bot が自動公開するのは10件のみです\n" \
                           + str(postCount - 10) + "件は手動で公開してください"
