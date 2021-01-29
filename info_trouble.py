@@ -46,11 +46,40 @@ def troubleDiff(old, new) -> str:
     return s
 
 
-def makeDiffStr() -> bool:
+def makeDiffStr() -> int:
     """
     ローカルのファイルとネット上のファイルでdiffをとる
+
+    不具合のカテゴリは次のものがある
+    ■現在調査対応している不具合
+    (■現在対応中の不具合)
+    ■修正済みの不具合
+    ■解消済みの不具合
     """
     target_url = "https://news.fate-go.jp/info/trouble/"
+
+    # 新規ファイルをチェック
+    r = requests.get(target_url)
+    if r.status_code != requests.codes.ok:
+        return False
+    soup_new = BeautifulSoup(r.content, "html.parser")
+
+    new_titles = soup_new.select("dl.accordion > dt")
+    titles = []
+    for new_title in new_titles:
+        titles.append(new_title.get_text())
+
+    # <dl> タグが閉じてないので <dd>で切り出す
+    new_categories = soup_new.select("dl.accordion > dd")
+    news = []
+    for new_category in new_categories:
+        new = []
+        p_news = new_category.select("p")
+        for p_new in p_news:
+            new.append(p_new.get_text())
+        news.append(new)
+
+    # ローカルファイルをチェック
     if backup_f.exists() is False:
         logger.warning("FILE %s don't exists.", backup_f)
         r = requests.get(target_url)
@@ -63,45 +92,43 @@ def makeDiffStr() -> bool:
     with open(backup_f, "r", encoding="UTF-8") as f:
         soup_old = BeautifulSoup(f, "html.parser")
     old_categories = soup_old.select("dl.accordion > dd")
-    old = []
-    p_olds = old_categories[-2].select("p")
-    for p_old in p_olds:
-        old.append(p_old.get_text())
+    olds = []
+    for old_category in old_categories:
+        old = []
+        p_olds = old_category.select("p")
+        for p_old in p_olds:
+            old.append(p_old.get_text())
+        olds.append(old)
 
-    r = requests.get(target_url)
-    if r.status_code != requests.codes.ok:
-        return False
-    soup_new = BeautifulSoup(r.content, "html.parser")
-    # <dl> タグが閉じてないので <dd>で切り出す
-    new_categories = soup_new.select("dl.accordion > dd")
-    new = []
-    p_news = new_categories[-2].select("p")
-    for p_new in p_news:
-        new.append(p_new.get_text())
+    fields = []
+    for i, (old, new) in enumerate(zip(olds, news)):
+        str_diff = troubleDiff(old, new)
 
-    str_diff = troubleDiff(old, new)
-    if len(str_diff) > 0:
+        if len(str_diff) > 0:
+            name = titles[i]
+            value = "```" + str_diff + "```"
+            fields.append({"name": name, "value": value})
+    if len(fields) > 0:
         discord.post(username="FGO アップデート",
                      embeds=[{
-                              "title": "修正済みの不具合更新",
+                              "title": soup_new.title.text,
                               "url": target_url,
-                              "description": "```" + str_diff + "```",
+                              "fields": fields,
                               "color": 5620992}])
         # ファイルを入れ替え
         with open(backup_f, "wb") as savefile:
             savefile.write(r.content)
-        return True
+        return len(fields)
     # postCount += 1
-    return False
+    return 0
 
 
 def getInfoTrouble():
     for i in range(LOOP_TIMES):
         if i > 0:
             time.sleep(LOOP_SECONDS)
-        if makeDiffStr():
+        if makeDiffStr() > 0:
             break
-        logger.info("{}回目のループ".format(i + 1))
 
 
 if __name__ == '__main__':

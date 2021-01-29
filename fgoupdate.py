@@ -1647,16 +1647,18 @@ def main(args):
                  check_missionCondition, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
-        # この機能だけは cid 指定の対象外
-        postCount += trouble.getTrouble()
-        if postCount > 10:
-            description = "bot が自動公開するのは10件のみです\n" \
-                          + str(postCount - 10) + "件は手動で公開してください"
-            discord_error.post(username="FGO アップデート",
-                               embeds=[{
-                                        "title": str(postCount) + "件投稿",
-                                        "description": description,
-                                        "color": 15158332}])
+    # この機能だけは cid 指定の対象外
+    postCount += trouble.getTrouble()
+    postCount += info_trouble.makeDiffStr()
+
+    if postCount > 10:
+        description = "bot が自動公開するのは10件のみです\n" \
+                        + str(postCount - 10) + "件は手動で公開してください"
+        discord_error.post(username="FGO アップデート",
+                            embeds=[{
+                                    "title": str(postCount) + "件投稿",
+                                    "description": description,
+                                    "color": 15158332}])
 
 
 if __name__ == '__main__':
