@@ -1,3 +1,6 @@
 lock
 fgoupdate.ini
 *.json
+info_trouble.html
+Thumbs.db
+__pycache__
