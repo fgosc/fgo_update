@@ -1647,9 +1647,6 @@ def main(args):
                  check_missionCondition, check_datavar]
         for func in funcs:
             post(func, updatefiles, cid=args.cid)
-    # この機能だけは cid 指定の対象外
-    postCount += trouble.getTrouble()
-    postCount += info_trouble.makeDiffStr()
 
     if postCount > 10:
         description = "bot が自動公開するのは10件のみです\n" \
@@ -1659,6 +1656,10 @@ def main(args):
                                     "title": str(postCount) + "件投稿",
                                     "description": description,
                                     "color": 15158332}])
+
+    # この機能だけは cid 指定の対象外
+    postCount += trouble.getTrouble()
+    postCount += info_trouble.makeDiffStr()
 
 
 if __name__ == '__main__':
