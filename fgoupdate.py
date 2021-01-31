@@ -813,12 +813,13 @@ def check_missionCondition(updatefiles, cid="HEAD"):
             value += "\n- ".join([id2itemName[t] for t in targetIds])
         fields.append({"name": name, "value": value})
 
-    discord.post(username="FGO アップデート",
-                 embeds=[{
-                          "title": "ミッション条件更新",
-                          "fields": fields,
-                          "color": 5620992}])
-    postCount += 1
+    if len(fields) > 0:
+        discord.post(username="FGO アップデート",
+                    embeds=[{
+                            "title": "ミッション条件更新",
+                            "fields": fields,
+                            "color": 5620992}])
+        postCount += 1
 
 
 def check_mastermissions(EM_list):
