@@ -772,7 +772,8 @@ def check_missionCondition(updatefiles, cid="HEAD"):
         mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
-        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"]
+                            for item in mstCommandCode})
         id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     mEM = load_file(mstEventMission_file, cid)
@@ -815,7 +816,7 @@ def check_missionCondition(updatefiles, cid="HEAD"):
 
     if len(fields) > 0:
         discord.post(username="FGO アップデート",
-                    embeds=[{
+                     embeds=[{
                             "title": "ミッション条件更新",
                             "fields": fields,
                             "color": 5620992}])
@@ -924,7 +925,8 @@ def check_raddermissions(RM_list, cid):
             mstQuest = load_file(mstQuest_file, cid)
             id2itemName = {item["id"]: item["name"] for item in mstItem}
             id2itemName.update({item["id"]: item["name"] for item in mstSvt})
-            id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+            id2itemName.update({item["id"]: item["name"]
+                                for item in mstCommandCode})
             id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
@@ -946,12 +948,14 @@ def check_raddermissions(RM_list, cid):
         # No. 順出力のときは【】で記述される開放部分は出力しない
 
         for n in RM_list:
-            gifts = [(id2itemName[g["objectId"]], g["num"]) for g in mstGift if g["id"] == n["giftId"]]
+            gifts = [(id2itemName[g["objectId"]],
+                      g["num"]) for g in mstGift if g["id"] == n["giftId"]]
             s += '- No.' + str(n["dispNo"]) + '\t' \
                  + re.sub(r'【.*?】', '',
                           mCondition_final[n["id"]].replace("\n", "")) \
                  + '\t'
-            s += "\t".join("{} x{:,}".format(gift[0], gift[1]) for gift in gifts)
+            s += "\t".join("{} x{:,}".format(gift[0],
+                                             gift[1]) for gift in gifts)
             s += "\n"
 
         # 開放順出力
@@ -1189,7 +1193,8 @@ def check_shop(updatefiles, cid="HEAD"):
         mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
-        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"]
+                            for item in mstCommandCode})
         id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     eventShop_list = [m for m in mstShop
@@ -1358,15 +1363,15 @@ def check_mstEquip(updatefiles, cid="HEAD"):
                                 "description": "[" + equip["name"] + "](" + "https://apps.atlasacademy.io/db/#/JP/mystic-code/" + str(equip["id"]) + ")",
                                 "fields": [
                                     {
-                                        "name": "詳細",
-                                        "value": '```' + equip["detail"] + '```'
+                                     "name": "詳細",
+                                     "value": '```' + equip["detail"] + '```'
                                     },
                                     {
-                                        "name": "スキル1",
-                                        "value": [k["name"] for k in mstSkill
-                                                  if k["id"] == skill1_id
-                                                  ][0] + ' CT' + str(skill1_ct) + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("{0}", "Lv") + '```',
-                                        "inline": True
+                                     "name": "スキル1",
+                                     "value": [k["name"] for k in mstSkill
+                                               if k["id"] == skill1_id
+                                               ][0] + ' CT' + str(skill1_ct) + '```' + [i["detail"] for i in mstSkillDetail if i["id"] == skill1_id][0].replace("{0}", "Lv") + '```',
+                                     "inline": True
                                     },
                                     {
                                         "name": "スキル2",
@@ -1441,7 +1446,8 @@ def check_box(updatefiles, cid="HEAD"):
         mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
-        id2itemName.update({item["id"]: item["name"] for item in mstCommandCode})
+        id2itemName.update({item["id"]: item["name"]
+                            for item in mstCommandCode})
         id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     # 集合演算で新idだけ抽出
@@ -1653,7 +1659,7 @@ def main(args):
         description = "bot が自動公開するのは10件のみです\n" \
                         + str(postCount - 10) + "件は手動で公開してください"
         discord_error.post(username="FGO アップデート",
-                            embeds=[{
+                           embeds=[{
                                     "title": str(postCount) + "件投稿",
                                     "description": description,
                                     "color": 15158332}])

@@ -5,7 +5,6 @@
 import argparse
 import logging
 from pathlib import Path
-import difflib
 import time
 import configparser
 import sys
@@ -39,11 +38,11 @@ discord_error = Discord(url=webhook_error_url)
 
 
 def troubleDiff(old, new) -> str:
-    s = ""
-    for i in difflib.context_diff(old, new, fromfile='更新前', tofile='更新後', n=0):
-        if not (i.startswith("***") or i.startswith("---")):
-            s += (i)
-    return s
+    """
+    消えた情報には価値は無いので新規除法だけ出すように変更
+    """
+    new_set = set(new) - set(old)
+    return "\n".join(new_set)
 
 
 def makeDiffStr() -> int:
