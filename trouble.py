@@ -98,14 +98,16 @@ def getTrouble():
             logger.critical("ウェブサイトから情報取得できません")
             continue
         soup = BeautifulSoup(r2.content, "html.parser")
+        title = soup.find('title').get_text().replace("  |  Fate/Grand Order 公式サイト", "")
+        description = soup.find('main').get_text().replace(title, "").replace('\n\n\n\n', "")
         discord.post(username="FGO アップデート",
                      embeds=[{
-                              "title": soup.find('title').get_text().replace("  |  Fate/Grand Order 公式サイト", ""),
+                              "title": title,
                               "author": {
                                          "name": "Fate/Grand Order 公式サイト : 不具合更新",
                                         },
                               "url": long_url,
-                              "description": soup.find('main').get_text(),
+                              "description": description,
                               "color": 5620992}])
     if len(urls) > 0:
         with open(filename, "w", encoding="UTF-8") as savefile:
