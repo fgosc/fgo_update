@@ -92,8 +92,21 @@ def getTrouble():
     # 比較
     urls = set(i["url"] for i in trouble) - set(i["url"] for i in trouble_prev)
     for url in urls:
+        long_url = "https://news.fate-go.jp" + url
+        r2 = requests.get(long_url)
+        if r2.status_code != requests.codes.ok:
+            logger.critical("ウェブサイトから情報取得できません")
+            continue
+        soup = BeautifulSoup(r2.content, "html.parser")
         discord.post(username="FGO アップデート",
-                     content="https://news.fate-go.jp" + url)
+                     embeds=[{
+                              "title": soup.find('title').get_text().replace("  |  Fate/Grand Order 公式サイト", ""),
+                              "author": {
+                                         "name": "Fate/Grand Order 公式サイト : 不具合更新",
+                                        },
+                              "url": long_url,
+                              "description": soup.find('main').get_text(),
+                              "color": 5620992}])
     if len(urls) > 0:
         with open(filename, "w", encoding="UTF-8") as savefile:
             json.dump(trouble, savefile, ensure_ascii=False)
