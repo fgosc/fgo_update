@@ -104,10 +104,10 @@ def getTrouble():
                      embeds=[{
                               "title": title,
                               "author": {
-                                         "name": "Fate/Grand Order 公式サイト : 不具合更新",
+                                         "name": "Fate/Grand Order 公式サイト",
                                         },
                               "url": long_url,
-                              "description": description,
+                              "description": "```" + description + "```",
                               "color": 5620992}])
     if len(urls) > 0:
         with open(filename, "w", encoding="UTF-8") as savefile:
