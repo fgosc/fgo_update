@@ -100,11 +100,13 @@ def getTrouble():
         soup = BeautifulSoup(r2.content, "html.parser")
         title = soup.find('title').get_text().replace("  |  Fate/Grand Order 公式サイト", "")
         description = soup.find('main').get_text().replace(title, "").replace('\n\n\n\n', "")
+        icon_url = "https://pbs.twimg.com/profile_images/1034364986041163776/tRqcymzd_400x400.jpg"
         discord.post(username="FGO アップデート",
                      embeds=[{
                               "title": title,
                               "author": {
                                          "name": "Fate/Grand Order 公式サイト",
+                                         "icon_url": icon_url
                                         },
                               "url": long_url,
                               "description": "```" + description + "```",

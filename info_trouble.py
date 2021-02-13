@@ -109,12 +109,14 @@ def makeDiffStr() -> int:
             fields.append({"name": name, "value": value})
     if len(fields) > 0:
         title = soup_new.title.text.replace("  |  Fate/Grand Order 公式サイト", "")
+        icon_url = "https://pbs.twimg.com/profile_images/1034364986041163776/tRqcymzd_400x400.jpg"
         discord.post(username="FGO アップデート",
                      embeds=[{
                               "title": title,
                               "author": {
                                          "name": "Fate/Grand Order 公式サイト",
-                                        },
+                                         "icon_url": icon_url
+                                    },
                               "url": target_url,
                               "fields": fields,
                               "color": 5620992}])
