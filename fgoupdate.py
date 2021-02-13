@@ -404,8 +404,8 @@ def make_np(svt, mstTreasureDevice, mstTreasureDeviceDetail,
     np = [np for np in mstTreasureDevice if np["seqId"] == svt["id"]][0]
     desp += np["name"]
     desp += "(" + np["ruby"] + ")" + " " \
-            + id2card_long[[np["cardId"] for np in mstSvtTreasureDevice
-                            if np["svtId"] == svt["id"]][0]] + "\n"
+            + id2card_long[[mstd["cardId"] for mstd in mstSvtTreasureDevice
+                            if mstd["treasureDeviceId"] == np["id"]][0]] + "\n"
     desp += "__ランク__ " + np["rank"] + "\n"
     desp += "__種別__ " + np["typeText"] + "\n"
     if spoiler:
@@ -769,12 +769,11 @@ def check_missionCondition(updatefiles, cid="HEAD"):
         mstItem = load_file(mstItem_file, cid)
         mstSvt = load_file(mstSvt_file, cid)
         mstCommandCode = load_file(mstCommandCode_file, cid)
-        mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+    mstQuest = load_file(mstQuest_file, cid)
     id2itemName4mc = id2itemName.copy()
     id2itemName4mc.update({item["id"]: item["name"] for item in mstQuest})
 
@@ -924,7 +923,6 @@ def check_raddermissions(RM_list, cid):
             mstItem = load_file(mstItem_file, cid)
             mstSvt = load_file(mstSvt_file, cid)
             mstCommandCode = load_file(mstCommandCode_file, cid)
-            mstQuest = load_file(mstQuest_file, cid)
             id2itemName = {item["id"]: item["name"] for item in mstItem}
             id2itemName.update({item["id"]: item["name"] for item in mstSvt})
             id2itemName.update({item["id"]: item["name"]
@@ -1225,12 +1223,10 @@ def check_shop(updatefiles, cid="HEAD"):
         mstItem = load_file(mstItem_file, cid)
         mstSvt = load_file(mstSvt_file, cid)
         mstCommandCode = load_file(mstCommandCode_file, cid)
-        mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     eventShop_list = [m for m in mstShop
                       if m["shopType"] == 1
@@ -1496,12 +1492,10 @@ def check_box(updatefiles, cid="HEAD"):
         mstItem = load_file(mstItem_file, cid)
         mstSvt = load_file(mstSvt_file, cid)
         mstCommandCode = load_file(mstCommandCode_file, cid)
-        mstQuest = load_file(mstQuest_file, cid)
         id2itemName = {item["id"]: item["name"] for item in mstItem}
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     # 集合演算で新idだけ抽出
     mstBG = load_file(mstBoxGacha_file, cid)
