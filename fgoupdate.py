@@ -774,7 +774,9 @@ def check_missionCondition(updatefiles, cid="HEAD"):
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+    id2itemName4mc = id2itemName.copy()
+    id2itemName4mc.update({item["id"]: item["name"] for item in mstQuest})
 
     mEM = load_file(mstEventMission_file, cid)
     id2type = {m["id"]: m["type"] for m in mEM}
@@ -811,7 +813,7 @@ def check_missionCondition(updatefiles, cid="HEAD"):
             value += "- " + str(targetIds[0])
         else:
             value = "- "
-            value += "\n- ".join([id2itemName[t] for t in targetIds])
+            value += "\n- ".join([id2itemName4mc[t] for t in targetIds])
         fields.append({"name": name, "value": value})
 
     if len(fields) > 0:
@@ -927,7 +929,6 @@ def check_raddermissions(RM_list, cid):
             id2itemName.update({item["id"]: item["name"] for item in mstSvt})
             id2itemName.update({item["id"]: item["name"]
                                 for item in mstCommandCode})
-            id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
         pattern1 = r"(?P<month>[0-9]{1,2})/(?P<day>[0-9]{1,2})"
         pattern2 = r"(?P<hour>([0-9]|[01][0-9]|2[0-3])):(?P<min>[0-5][0-9])"
@@ -1078,6 +1079,8 @@ def output_shop(shop_list, shopname):
             # items.append(item["name"] + " @" + price + " x" + limitNum)
             items.append(item)
         else:
+            items = sorted(sorted(items, key=lambda x: x["id"]),
+                        key=lambda x: x["itemIds"][0], reverse=True)
             date_item = {"date": itemdate, "items": items}
             date_items.append(date_item)
             itemdate = '```開始 | ' + str(openedAt) \
@@ -1095,20 +1098,29 @@ def output_shop(shop_list, shopname):
     # ソート
     # filedを作成
     fields = []
+    shop_txt = ""  # 2000文字超の場合に使用
     for date_item in date_items:
         logger.debug(date_item)
         field = [{"name": ":date: 日時",
                  "value": date_item["date"]
                   }]
+        shop_txt += "\n\n"
+        shop_txt += date_item["date"].replace("```", "")
         prev_itemId = 0
         for i, item in enumerate(date_item["items"]):
             itemId = item["itemIds"][0]
             if i == 0:
                 if itemId in [0, 18]:
                     f = {"name": "アイテム"}
+                    shop_txt += "アイテム\n"
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
+                    shop_txt += "\n\n【{}で交換可能なアイテム】\n".format(id2itemName[itemId])
                 f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
+                shop_txt += "- " + item["name"] \
                              + " @" + str(item["prices"][0]) \
                              + " x" + (str(item["limitNum"])
                                        if item["limitNum"] != 0 else "∞")
@@ -1118,13 +1130,23 @@ def output_shop(shop_list, shopname):
                               + " @" + str(item["prices"][0])\
                               + " x" + (str(item["limitNum"])
                                         if item["limitNum"] != 0 else "∞")
+                shop_txt += "\n- " + item["name"] \
+                              + " @" + str(item["prices"][0])\
+                              + " x" + (str(item["limitNum"])
+                                        if item["limitNum"] != 0 else "∞")
             else:
                 field.append(f)
                 if itemId in [0, 18]:
                     f = {"name": "アイテム"}
+                    shop_txt += "アイテム\n"
                 else:
                     f = {"name": "{}で交換可能なアイテム".format(id2itemName[itemId])}
+                    shop_txt += "\n\n【{}で交換可能なアイテム】\n".format(id2itemName[itemId])
                 f["value"] = "- " + item["name"] \
+                             + " @" + str(item["prices"][0]) \
+                             + " x" + (str(item["limitNum"])
+                                       if item["limitNum"] != 0 else "∞")
+                shop_txt += "- " + item["name"] \
                              + " @" + str(item["prices"][0]) \
                              + " x" + (str(item["limitNum"])
                                        if item["limitNum"] != 0 else "∞")
@@ -1159,11 +1181,24 @@ def output_shop(shop_list, shopname):
                                   "color": 5620992}])
             postCount += 1
         else:
-            discord.post(username="FGO アップデート",
-                         embeds=[{
-                                  "title": shopname + "更新",
-                                  "fields": fields,
-                                  "color": 5620992}])
+            if sys.getsizeof(json.dumps(fields)) < 2000 - 70:
+                discord.post(username="FGO アップデート",
+                            embeds=[{
+                                    "title": shopname + "更新",
+                                    "fields": fields,
+                                    "color": 5620992}])
+            else:
+                tmpdir = tempfile.TemporaryDirectory()
+                # 日本語のファイル名には対応していない
+                savefile = os.path.join(tmpdir.name, 'Event Shop List.txt')
+                with open(savefile, mode='w', encoding="UTF-8") as f:
+                    f.write(shop_txt)
+                discord.post(username="FGO アップデート",
+                            file={
+                                "file1": open(savefile, "rb"),
+                                },
+                            )
+                tmpdir.cleanup()
             postCount += 1
 
 
@@ -1195,7 +1230,7 @@ def check_shop(updatefiles, cid="HEAD"):
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     eventShop_list = [m for m in mstShop
                       if m["shopType"] == 1
@@ -1423,11 +1458,29 @@ def check_eventReward(updatefiles, cid="HEAD"):
             description += id2itemName[rew["itemId"]] + "\t"
             description += "x{:,}".format(rew["num"]) + "\n"
 
-        discord.post(username="FGO アップデート",
-                     embeds=[{
-                              "title": "ポイント報酬更新",
-                              "description": description,
-                              "color": 5620992}])
+        if sys.getsizeof(json.dumps(description)) < 2000 - 70:
+            discord.post(username="FGO アップデート",
+                        embeds=[{
+                                "title": "ポイント報酬更新",
+                                "description": description,
+                                "color": 5620992}])
+        else:
+            tmpdir = tempfile.TemporaryDirectory()
+            # 日本語のファイル名には対応していない
+            savefile = os.path.join(tmpdir.name, 'Event Point Reward.txt')
+            with open(savefile, mode='w', encoding="UTF-8") as f:
+                f.write(description)
+            discord.post(username="FGO アップデート",
+                        file={
+                            "file1": open(savefile, "rb"),
+                            },
+                        )
+            tmpdir.cleanup()
+        # discord.post(username="FGO アップデート",
+        #              embeds=[{
+        #                       "title": "ポイント報酬更新",
+        #                       "description": description,
+        #                       "color": 5620992}])
         postCount += 1
 
 
@@ -1448,7 +1501,7 @@ def check_box(updatefiles, cid="HEAD"):
         id2itemName.update({item["id"]: item["name"] for item in mstSvt})
         id2itemName.update({item["id"]: item["name"]
                             for item in mstCommandCode})
-        id2itemName.update({item["id"]: item["name"] for item in mstQuest})
+        # id2itemName.update({item["id"]: item["name"] for item in mstQuest})
 
     # 集合演算で新idだけ抽出
     mstBG = load_file(mstBoxGacha_file, cid)
