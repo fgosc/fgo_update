@@ -765,7 +765,7 @@ def check_missionCondition(updatefiles, cid="HEAD"):
     global id2itemName
     if mstEventMissionCondition_file not in updatefiles:
         return
-    if len(id2itemName.keys()) == 0:
+    if len(id2itemName) == 0:
         mstItem = load_file(mstItem_file, cid)
         mstSvt = load_file(mstSvt_file, cid)
         mstCommandCode = load_file(mstCommandCode_file, cid)
@@ -918,7 +918,7 @@ def check_raddermissions(RM_list, cid):
 
     if len(RM_list) != 0:
         global id2itemName
-        if len(id2itemName.keys()) == 0:
+        if len(id2itemName) == 0:
             mstItem = load_file(mstItem_file, cid)
             mstSvt = load_file(mstSvt_file, cid)
             mstCommandCode = load_file(mstCommandCode_file, cid)
@@ -1186,7 +1186,7 @@ def check_shop(updatefiles, cid="HEAD"):
     logger.debug(shopIds)
 
     global id2itemName
-    if len(id2itemName.keys()) > 0:
+    if len(id2itemName) == 0:
         mstItem = load_file(mstItem_file, cid)
         mstSvt = load_file(mstSvt_file, cid)
         mstCommandCode = load_file(mstCommandCode_file, cid)
