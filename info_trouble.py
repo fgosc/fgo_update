@@ -19,7 +19,7 @@ basedir = Path(__file__).resolve().parent
 
 backup_f = basedir / "info_trouble.html"
 
-LOOP_TIMES = 15
+LOOP_TIMES = 5
 LOOP_SECONDS = 60
 
 # 設定ファイル読み込み
@@ -104,7 +104,7 @@ def makeDiffStr() -> int:
         str_diff = troubleDiff(old, new)
 
         if len(str_diff) > 0:
-            name = titles[i]
+            name = titles[i] + ":bug:"
             value = "```" + str_diff + "```"
             fields.append({"name": name, "value": value})
     if len(fields) > 0:
