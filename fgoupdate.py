@@ -807,9 +807,9 @@ def check_missionCondition(updatefiles, cid="HEAD"):
         targetIds = [m['targetIds'] for m in mEMCd
                      if mission["targetIds"][0] == m["id"]][0]
         if max(targetIds) < 6000:
-            value = " Traitsに下記の数値を入力して[検索]"
-            value += "(https://apps.atlasacademy.io/db/#/JP/entities)\n"
-            value += "- " + str(targetIds[0])
+            value = " [ターゲット属性検索(外部サイト)]"
+            value += "(https://apps.atlasacademy.io/db/#/JP/entities"
+            value += "?trait=" + str(targetIds[0]) + ")"
         else:
             value = "- "
             value += "\n- ".join([id2itemName4mc[t] for t in targetIds])
