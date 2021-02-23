@@ -1488,7 +1488,7 @@ def check_eventReward(updatefiles, cid="HEAD"):
             description += id2itemName[rew["itemId"]] + "\t"
             description += "x{:,}".format(rew["num"]) + "\n"
 
-        if sys.getsizeof(json.dumps(description)) < 2000 - 70:
+        if len(description.encode("EUC_JP")) < 2000 - 70:
             discord.post(username="FGO アップデート",
                         embeds=[{
                                 "title": "ポイント報酬更新",
