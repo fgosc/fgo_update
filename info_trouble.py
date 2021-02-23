@@ -104,7 +104,7 @@ def makeDiffStr() -> int:
         str_diff = troubleDiff(old, new)
 
         if len(str_diff) > 0:
-            name = titles[i] + ":bug:"
+            name = titles[i].replace("■", ":bug:") + ":bug:"
             value = "```" + str_diff + "```"
             fields.append({"name": name, "value": value})
     if len(fields) > 0:
