@@ -50,6 +50,7 @@ mstver_file = "mstver.json"
 mstQuest_file = "JP_tables/quest/mstQuest.json"
 mstQuestInfo_file = "JP_tables/quest/viewQuestInfo.json"
 mstQuestPhase_file = "JP_tables/quest/mstQuestPhase.json"
+mstQuestConsumeItem_file = "JP_tables/quest/mstQuestConsumeItem.json"
 mstEventMission_file = "JP_tables/event/mstEventMission.json"
 mstEventMissionCondition_file = "JP_tables/event/mstEventMissionCondition.json"
 mstEventMissionConditionDetail_file = "JP_tables/event/mstEventMissionConditionDetail.json"
@@ -687,6 +688,31 @@ def output_quest(q_list, title):
         postCount += 1
 
 
+def questId2consumeItem(questId: int, cid: str) -> str:
+    """questIdからそのクエストの消費アイテムを返す
+
+    :param questId: クエストの固有ID
+    :type questId: int
+    :return: アイテム名
+    :rtype: str
+    """
+    global id2itemName
+    if len(id2itemName) == 0:
+        mstItem = load_file(mstItem_file, cid)
+        mstSvt = load_file(mstSvt_file, cid)
+        mstCommandCode = load_file(mstCommandCode_file, cid)
+        id2itemName = {item["id"]: item["name"] for item in mstItem}
+        id2itemName.update({item["id"]: item["name"] for item in mstSvt})
+        id2itemName.update({item["id"]: item["name"]
+                            for item in mstCommandCode})
+    mstQuestConsumeItem_list = load_file(mstQuestConsumeItem_file, cid)
+    consumeItem = [q["itemIds"][0]
+                    for q in mstQuestConsumeItem_list
+                    if q["questId"] == questId][0]
+    consume_item = id2itemName[consumeItem]
+    return consume_item
+
+
 def check_quests(updatefiles, cid="HEAD"):
     """
     クエストをチェックする
@@ -719,15 +745,23 @@ def check_quests(updatefiles, cid="HEAD"):
             continue
         if "高難易度" in quest["name"]:
             enemy = questId2classIds[quest["id"]]
+            if quest["consumeType"] == 3:
+                consume_item = questId2consumeItem(quest["questId"], cid)
+            else:
+                consume_item = "AP"
             q_list.append([quest["id"], quest["name"],
                            'Lv' + quest["recommendLv"],
-                           'AP' + str(quest["actConsume"]),
+                           consume_item + str(quest["actConsume"]),
                            list2class(enemy),
                            quest["openedAt"],
                            quest["closedAt"]])
             continue
         for q in mstQuestInfo_list:
             if q["questId"] == quest["id"]:
+                if quest["consumeType"] == 3:
+                    consume_item = questId2consumeItem(q["questId"], cid)
+                else:
+                    consume_item = "AP"
                 if quest["id"] not in questId2classIds.keys():
                     enemy = ""
                 else:
@@ -735,14 +769,14 @@ def check_quests(updatefiles, cid="HEAD"):
                 if quest["id"] > 94000000:
                     q_list.append([quest["id"], quest["name"],
                                    'Lv' + quest["recommendLv"],
-                                   'AP' + str(quest["actConsume"]),
+                                   consume_item + str(quest["actConsume"]),
                                    list2class(enemy),
                                    quest["openedAt"],
                                    quest["closedAt"]])
                 else:
                     fq_list.append([quest["id"], quest["name"],
                                     'Lv' + quest["recommendLv"],
-                                    'AP' + str(quest["actConsume"]),
+                                    consume_item + str(quest["actConsume"]),
                                     list2class(enemy),
                                     quest["openedAt"],
                                     quest["closedAt"]])
@@ -1179,7 +1213,7 @@ def output_shop(shop_list, shopname):
                                   "color": 5620992}])
             postCount += 1
         else:
-            if sys.getsizeof(json.dumps(fields)) < 2000 - 70:
+            if len(shop_txt.encode("EUC_JP")) < 2000 - 70:
                 discord.post(username="FGO アップデート",
                             embeds=[{
                                     "title": shopname + "更新",
