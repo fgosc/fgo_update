@@ -1073,7 +1073,7 @@ def check_missions(updatefiles, cid="HEAD"):
     mstEventMissionDaily_list = sorted(mstEventMissionDaily_list,
                                        key=lambda x: x['closedAt'])
     mstEventMissionLimited_list = [m for m in mstEventMission
-                                   if m["type"] == 6
+                                   if m["type"] not in [1, 2, 3]
                                    and m["id"] in eventMissiontIds]
     mstEventMissionLimited_list = sorted(mstEventMissionLimited_list,
                                          key=lambda x: x['closedAt'])
