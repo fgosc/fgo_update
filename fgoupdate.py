@@ -1213,7 +1213,7 @@ def output_shop(shop_list, shopname):
                                   "color": 5620992}])
             postCount += 1
         else:
-            if len(shop_txt.encode("EUC_JP")) < 2000 - 70:
+            if len(shop_txt.encode("EUC_JP", 'replace')) < 2000 - 70:
                 discord.post(username="FGO アップデート",
                             embeds=[{
                                     "title": shopname + "更新",
@@ -1488,7 +1488,7 @@ def check_eventReward(updatefiles, cid="HEAD"):
             description += id2itemName[rew["itemId"]] + "\t"
             description += "x{:,}".format(rew["num"]) + "\n"
 
-        if len(description.encode("EUC_JP")) < 2000 - 70:
+        if len(description.encode("EUC_JP", 'replace')) < 2000 - 70:
             discord.post(username="FGO アップデート",
                         embeds=[{
                                 "title": "ポイント報酬更新",
